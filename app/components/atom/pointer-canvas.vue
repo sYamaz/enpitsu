@@ -1,10 +1,21 @@
 <template>
-    <canvas :id="canvasId" width="800" height="600" @pointerdown="handlePointerDown" @pointerup="handlePointerUp"
-            @pointerleave="" @pointermove="handlePointerMove" style="width: 800px; height: 600px;" />
+    <canvas :id="canvasId" :width="800" :height="600" @pointerdown="handlePointerDown" @pointerup="handlePointerUp"
+            @pointerleave="handlePointerUp" @pointermove="handlePointerMove" style="width: 800px; height: 600px;" />
 </template>
 
 <script setup lang="ts">
-defineProps<{canvasId: string}>();
+
+defineProps({
+    canvasId: {
+        type: String,
+        required: true
+    },
+    dpi: {
+        type: Number,
+        required: true
+    }
+
+})
 
 const emit = defineEmits<{
     'onPointerDown':[PointerEvent]
@@ -13,24 +24,25 @@ const emit = defineEmits<{
     'onPointerDraw': [PointerEvent]
 }>();
 
-const isPointerDown = ref<boolean>(false)
+let isPointerDown = false
 
 const handlePointerDown = (ev: PointerEvent) => {
-    ev.preventDefault();
-    isPointerDown.value = true;
+    isPointerDown = true;
+    // 初期位置を設定して最初の描画イベントを送信
     emit('onPointerDown', ev);
+    ev.preventDefault();
 }
 
 const handlePointerUp = (ev: PointerEvent) => {
     ev.preventDefault();
-    isPointerDown.value = false;
+    isPointerDown = false;
     emit('onPointerUp', ev);
 }
 
 const handlePointerMove = (ev: PointerEvent) => {
     ev.preventDefault();
     emit('onPointerMove', ev);
-    if (isPointerDown.value) {
+    if (isPointerDown) {
         emit('onPointerDraw', ev);
     }
 }
@@ -40,7 +52,7 @@ const handlePointerMove = (ev: PointerEvent) => {
 <style lang="css" scoped>
 canvas {
     border: 1px solid #000000;
-    background-color: white;
+    background-color: transparent;
     user-select: none;
 }
 </style>
