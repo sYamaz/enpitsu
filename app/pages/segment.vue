@@ -1,33 +1,92 @@
 <template>
     <UContainer style="touch-action: none;">
-        <pointerCanvas ref="canvasRef" :dpi="DPI" style="background-color: white;" :canvasId="CANVAS_ID" @onPointerDown="handlePointerDown" @onPointerUp="handlePointerUp"
-             @onPointerDraw="handlePointerDraw" />
+        <pointerCanvas ref="canvasRef" style="background-color: white;" :canvasId="CANVAS_ID"
+            @onPointerDown="handlePointerDown" @onPointerUp="handlePointerUp" @onPointerDraw="handlePointerDraw" />
         <p style="user-select: none;pointer-events: none;">{{ log }}</p>
     </UContainer>
 </template>
 
 <script setup lang="ts">
-import {type InputPoint} from '~/utils/hand-writer'
+import { type InputPoint } from '~/utils/hand-writer'
 import pointerCanvas from '~/components/atom/pointer-canvas.vue';
-const FILL_COLOR = "black";
-const LINE_STROKE_WIDTH = 0;
-const DPI = 2
+import CustomWorker from '~/workers/worker.ts?worker';
 const CANVAS_ID = "myCanvas";
+
+interface QueuedEvent {
+  type: 'indown' | 'inkdraw' | 'inkup';
+  point: InputPoint;
+  timestamp: number;
+}
+
+// イベントキュー
+const eventQueue: QueuedEvent[] = [];
+let rafId: number | null = null;
+let lastSendTime = 0;
+const SEND_INTERVAL = 8; // 8ms = 約120fps（16msだと60fps）
 
 const log: Ref<string> = ref('');
 
-let prev: InputPoint | null = null;
-let ctx: CanvasRenderingContext2D | null = null;
+let offscreen:OffscreenCanvas | null = null;
 
-const handWriter = useHandWriter(0, 10);
+let worker: Worker | null = null;
 
-const pushPrevPoint = (p: InputPoint) => {
-    prev = p;
-}
+onMounted(() => {
+    worker = new CustomWorker();
 
-const clearPrevPoints = () => {
-    prev = null;
-}
+    const dpi = window.devicePixelRatio || 1;
+    
+
+    const canvas = document.getElementById(CANVAS_ID) as HTMLCanvasElement;
+    // OffscreenCanvasに転送して描画のパフォーマンスを向上させる
+    offscreen = canvas.transferControlToOffscreen();
+
+    worker!.postMessage({type: 'init', data: {canvas: offscreen, dpi}}, [offscreen]);
+})
+
+// バッチ送信
+const flushQueue = (now: number) => {
+  // 前回の送信から十分時間が経過しているか
+  if (now - lastSendTime < SEND_INTERVAL) {
+    rafId = requestAnimationFrame(flushQueue);
+    return;
+  }
+  
+  if (eventQueue.length === 0) {
+    rafId = null;
+    return;
+  }
+  
+  // キューの内容を全て取り出して送信
+  const batch = eventQueue.splice(0, eventQueue.length);
+  
+  console.log(`[Main] Sending batch of ${batch.length} events`);
+  worker?.postMessage({
+    type: 'batch',
+    data: { events: batch }
+  });
+  
+  lastSendTime = now;
+  
+  // 次のフレームで再度チェック
+  rafId = requestAnimationFrame(flushQueue);
+};
+
+const addToQueue = (type: QueuedEvent['type'], e: PointerEvent) => {
+  eventQueue.push({
+    type,
+    point: {
+      x: e.offsetX,
+      y: e.offsetY,
+      pressure: e.pressure || 0.5
+    },
+    timestamp: performance.now()
+  });
+  
+  // rAFループが動いていなければ開始
+  if (!rafId) {
+    rafId = requestAnimationFrame(flushQueue);
+  }
+};
 
 const pointFromEvent = (ev: PointerEvent): InputPoint => {
     return {
@@ -37,105 +96,19 @@ const pointFromEvent = (ev: PointerEvent): InputPoint => {
     };
 }
 
-const getCanvasContext = (): CanvasRenderingContext2D | null => {
-    if(ctx) {
-        return ctx;
-    }
-
-    const canvas = document.getElementById(CANVAS_ID) as HTMLCanvasElement;
-    canvas.width = 800 * DPI;
-    canvas.height = 600 * DPI;
-
-    ctx = canvas.getContext("2d");
-    if (!ctx) {
-        return null;
-    }
-    ctx.scale(DPI, DPI);
-    return ctx;
-}
-
 const handlePointerDown = (ev: PointerEvent) => {
-    // 始点のcap処理
-    const ctx = getCanvasContext();
-    if (!ctx) {
-        return;
-    }
-
     const current = pointFromEvent(ev);
-    if (current.pressure === 0) {
-        current.pressure = 0.1; // pressureが0の場合は最低値を設定
-    }
-
-    drawJoint(ctx, handWriter.convertToJoint(current));
-
-    pushPrevPoint(current);
+    worker!.postMessage({type: 'inkdown', data: {point: current}});
 }
 
 const handlePointerUp = (ev: PointerEvent) => {
-
-    // 終点のcap処理
-    const ctx = getCanvasContext();
-    if (!ctx) {
-        return;
-    }
-
     const current = pointFromEvent(ev);
-    if (current.pressure === 0) {
-        current.pressure = 0.1; // pressureが0の場合は最低値を設定
-    }
-
-    if (prev) {
-        const seg = handWriter.getSegment(prev, current)
-        drawSegment(ctx, seg);
-    }
-
-    drawJoint(ctx, handWriter.convertToJoint(current));
-
-    clearPrevPoints();
+    worker!.postMessage({type: 'inkup', data: {point: current}});
 }
 
 const handlePointerDraw = (ev: PointerEvent) => {
-    const ctx = getCanvasContext();
-    if (!ctx) {
-        
-        return;
-    }
-
     const current = pointFromEvent(ev);
-    console.log(current);
-
-    // 線の描画
-    if (prev ) {
-        const seg = handWriter.getSegment(prev, current);
-        drawSegment(ctx, seg);
-        drawJoint(ctx, handWriter.convertToJoint(current));
-    }
-
-    // 点の保存
-    prev = current;
-}
-
-/** segment = 台形を描画 */
-const drawSegment = (ctx: CanvasRenderingContext2D, seg: Segment) => {
-    ctx.strokeStyle = FILL_COLOR;
-    ctx.fillStyle = FILL_COLOR;
-    ctx.lineWidth = LINE_STROKE_WIDTH;
-    ctx.beginPath();
-    ctx.moveTo(seg.start1.x, seg.start1.y);
-    ctx.lineTo(seg.end1.x, seg.end1.y);
-    ctx.lineTo(seg.end2.x, seg.end2.y);
-    ctx.lineTo(seg.start2.x, seg.start2.y);
-    ctx.closePath();
-    ctx.fill();
-}
-
-const drawJoint = (ctx: CanvasRenderingContext2D, joint: Joint) => {
-    ctx.strokeStyle = FILL_COLOR;
-    ctx.fillStyle = FILL_COLOR;
-    ctx.lineWidth = LINE_STROKE_WIDTH;
-    ctx.beginPath();
-    ctx.arc(joint.x, joint.y, joint.size, 0, 2 * Math.PI);
-    ctx.fill();
+    worker!.postMessage({type: 'inkdraw', data: {point: current}});
 }
 
 </script>

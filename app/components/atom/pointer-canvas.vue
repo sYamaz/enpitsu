@@ -9,12 +9,7 @@ defineProps({
     canvasId: {
         type: String,
         required: true
-    },
-    dpi: {
-        type: Number,
-        required: true
     }
-
 })
 
 const emit = defineEmits<{
