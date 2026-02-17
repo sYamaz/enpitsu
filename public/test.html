@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+        canvas {
+            touch-action: none;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="log" style="font-size: 24px;">waiting...</div>
+    <canvas id="c" width="800" height="600" style="width: 800px; height: 600px;"></canvas>
+    
+    <script>
+        // タッチイベントでテキスト選択を防ぐ
+        document.addEventListener('touchstart', (ev) => {
+            ev.preventDefault();
+        }, { passive: false });
+
+        document.addEventListener('selectstart', (ev) => {
+            ev.preventDefault();
+        });
+
+        const canvas = document.getElementById('c');
+        const log = document.getElementById('log');
+        
+        let downCount = 0;
+        let moveCount = 0;
+        let upCount = 0;
+
+        canvas.addEventListener('pointerdown', (ev) => {
+            ev.preventDefault();
+            downCount++;
+            log.textContent = `DOWN:${downCount} MOVE:${moveCount} UP:${upCount}`;
+        }, { passive: false });
+        
+        canvas.addEventListener('pointermove', (ev) => {
+            ev.preventDefault();
+            moveCount++;
+            log.textContent = `DOWN:${downCount} MOVE:${moveCount} UP:${upCount}`;
+        }, { passive: false });
+        
+        canvas.addEventListener('pointerup', (ev) => {
+            ev.preventDefault();
+            upCount++;
+            log.textContent = `DOWN:${downCount} MOVE:${moveCount} UP:${upCount}`;
+        }, { passive: false });
+
+        document.addEventListener('gesturestart', (ev) => ev.preventDefault(), { passive: false });
+        document.addEventListener('gesturechange', (ev) => ev.preventDefault(), { passive: false });
+        document.addEventListener('gestureend', (ev) => ev.preventDefault(), { passive: false });
+        document.addEventListener('dblclick', (ev) => ev.preventDefault(), { passive: false });
+        document.addEventListener('contextmenu', (ev) => ev.preventDefault(), { passive: false });
+    </script>
+</body>
+</html>

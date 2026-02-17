@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@nuxt/eslint": "^1.14.0",
-    "@nuxt/ui": "^4.4.0",
+    "@syamaz/catmull-rom-spline": "^1.1.0",
     "@vueuse/rxjs": "^14.2.1",
     "nuxt": "^4.3.0",
     "rxjs": "^7.8.2",

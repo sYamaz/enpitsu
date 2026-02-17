@@ -1,7 +1,14 @@
-@import "tailwindcss";
-@import "@nuxt/ui";
-
-html, body {
-    height: 100dvh;
-    user-select: none;
+html,
+body {
+  height: 100dvh;
+  /* 速記時のpointerイベント落ちに効くかと思ったけどそうでもなさそう
+  user-select: none;
+  touch-action: none;
+  margin: 0;
+  overflow-y: hidden; */
 }
+/* 速記時のpointerイベント落ちに効くかと思ったけどそうでもなさそう
+* {
+  user-select: none;
+  -webkit-user-select: none;
+} */
