@@ -11,6 +11,8 @@ export interface Point {
 
 export interface Joint extends Point {
     size: number;
+    alpha: number;
+    darkness: number;
 }
 
 export interface Segment {
@@ -24,18 +26,44 @@ export interface Segment {
     end2: Point
 }
 
-export const useHandWriter = (minThickness = 1, maxThickness = 10) => {
+export const useHandWriter = (minThickness = 1, maxThickness = 10, minAlpha = 0.5, maxAlpha = 1.0, minDarkness = 128, maxDarkness = 255) => {
     const grad = Math.abs(maxThickness - minThickness);
     // minThickness, maxThicknessをもとにpressure(0~1)を線の太さに変換する関数を返す
     const pressureToThickness = (pressure: number): number => {
         return minThickness + grad * pressure;
     }
 
+    const alphaGrad = Math.abs(maxAlpha - minAlpha)
+    const pressureToAlpha = (pressure: number) => {
+        const alpha = minAlpha + alphaGrad * pressure
+        if(alpha > 1) {
+            return 1
+        }
+        if(alpha < 0) {
+            return 0
+        }
+        return alpha
+    }
+
+    const darknessGrad = Math.abs(maxDarkness - minDarkness)
+    const pressureToDarkeness = (pressure: number) => {
+        const darkness = minDarkness + darknessGrad * pressure
+        if(darkness > 255) {
+            return 255
+        }
+        if(darkness < 0) {
+            return 0
+        }
+        return darkness
+    }
+
     const convertToJoint = (point: InputPoint): Joint => {
         return {
             x: point.x,
             y: point.y,
-            size: pressureToThickness(point.pressure)
+            size: pressureToThickness(point.pressure),
+            alpha: pressureToAlpha(point.pressure),
+            darkness: pressureToDarkeness(point.pressure)
         }
     }
 

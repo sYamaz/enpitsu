@@ -9,38 +9,40 @@
 import { type InputPoint } from '~/utils/hand-writer'
 import { Spline } from '~/utils/spline';
 
+const INTERPORATE_POINTS = 10
 const CANVAS_ID = "myCanvas";
 const CANVAS_WIDTH = 800
 const CANVAS_HEIGHT = 600
-let DPI = 1
 
 const spline = new Spline()
 
-interface QueuedEvent {
-    type: 'inkdown' | 'inkdraw' | 'inkup';
-    point: InputPoint;
-}
+const waitPoint: InputPoint[] = [];
+const pendingStroke: InputPoint[] = [];
+const submittedStrokes: InputPoint[][] = [];
 
-const pendingStroke: QueuedEvent[] = [];
-let last: QueuedEvent | null = null;
 let rafId: number | null = null;
 let ctx: CanvasRenderingContext2D | null = null;
 
-const hr = useHandWriter(0.1, 2)
+const hr = useHandWriter(0.5, 2, 1, 1, 128, 255)
+
+const log = ref('')
 
 onMounted(() => {
-    DPI = window.devicePixelRatio || 1
+    const DPI = window.devicePixelRatio || 1
 
     const canvas = document.getElementById(CANVAS_ID) as HTMLCanvasElement
+    ctx = canvas.getContext('2d')!
     canvas.width = CANVAS_WIDTH * DPI
     canvas.height = CANVAS_HEIGHT * DPI
-
-    ctx = canvas.getContext('2d')!  // ← constなし
     ctx.scale(DPI, DPI)
+
+    // ctx.globalCompositeOperation = 'multiply'
+    ctx.globalCompositeOperation = 'source-over'
 
     canvas.addEventListener('pointerdown', handlePointerDown, { passive: false })
     canvas.addEventListener('pointermove', handlePointerMove, { passive: false })
     canvas.addEventListener('pointerup', handlePointerUp, { passive: false })
+
 
     // 必ずしも必要ではなさそう
     // document.addEventListener('gesturestart', (ev) => ev.preventDefault(), { passive: false });
@@ -61,69 +63,91 @@ onMounted(() => {
     // });
 })
 
-const render = () => {
-    while (pendingStroke.length > 0) {  // 1個じゃなく全部処理
-        const first = pendingStroke.shift()!
+const renderJoint = (joint: Joint) => {
+    const r = 255 - joint.darkness
+    const g = 255 - joint.darkness
+    const b = 255 - joint.darkness
+    ctx!.fillStyle = `rgba(${r},${g},${b},${joint.alpha})`
+    ctx!.lineWidth = 0
+    ctx!.beginPath()
+    ctx!.arc(joint.x, joint.y, joint.size, 0, Math.PI * 2)
+    ctx!.closePath()
+    ctx!.fill()
+}
 
-        switch (first.type) {
-            case 'inkdown': {
-                const joint = hr.convertToJoint(first.point)
-                ctx!.fillStyle = 'black'
-                ctx!.beginPath()
-                ctx!.arc(joint.x, joint.y, joint.size, 0, Math.PI * 2)
-                ctx!.closePath()
-                ctx!.fill()
-                break
-            }
-            case 'inkdraw': {
-                const joint = hr.convertToJoint(first.point)
-                ctx!.fillStyle = 'black'
-                ctx!.beginPath()
-                ctx!.arc(joint.x, joint.y, joint.size, 0, Math.PI * 2)
-                ctx!.closePath()
-                ctx!.fill()
+const renderSegment = (seg: Segment) => {
+    const gradient = ctx!.createLinearGradient(seg.start.x, seg.start.y, seg.end.x, seg.end.y)
+    gradient.addColorStop(0, `rgba(${255 - seg.start.darkness},${255 - seg.start.darkness},${255 - seg.start.darkness},${seg.start.alpha})`)
+    gradient.addColorStop(1, `rgba(${255 - seg.start.darkness},${255 - seg.start.darkness},${255 - seg.start.darkness},${seg.end.alpha})`)
 
-                if (last) {
-                    const seg = hr.getSegment(last.point, first.point)
-                    ctx!.fillStyle = 'black'
-                    ctx!.beginPath()
-                    ctx!.moveTo(seg.start1.x, seg.start1.y)
-                    ctx!.lineTo(seg.end1.x, seg.end1.y)
-                    ctx!.lineTo(seg.end2.x, seg.end2.y)
-                    ctx!.lineTo(seg.start2.x, seg.start2.y)
-                    ctx!.closePath()
-                    ctx!.fill()
-                }
-                break
-            }
-            case 'inkup': {
-                const joint = hr.convertToJoint(first.point)
-                ctx!.fillStyle = 'black'
-                ctx!.beginPath()
-                ctx!.arc(joint.x, joint.y, joint.size, 0, Math.PI * 2)
-                ctx!.closePath()
-                ctx!.fill()
+    ctx!.fillStyle = gradient
+    ctx!.lineWidth = 0
+    ctx!.beginPath()
+    ctx!.moveTo(seg.start1.x, seg.start1.y)
+    ctx!.lineTo(seg.end1.x, seg.end1.y)
+    ctx!.lineTo(seg.end2.x, seg.end2.y)
+    ctx!.lineTo(seg.start2.x, seg.start2.y)
+    ctx!.closePath()
+    ctx!.fill()
+}
 
-                if (last) {
-                    const seg = hr.getSegment(last.point, first.point)
-                    ctx!.fillStyle = 'black'
-                    ctx!.beginPath()
-                    ctx!.moveTo(seg.start1.x, seg.start1.y)
-                    ctx!.lineTo(seg.end1.x, seg.end1.y)
-                    ctx!.lineTo(seg.end2.x, seg.end2.y)
-                    ctx!.lineTo(seg.start2.x, seg.start2.y)
-                    ctx!.closePath()
-                    ctx!.fill()
-                }
-                break
-            }
+const render = (flush: boolean = false) => {
+    // 過去3点(p0, p1, p2)と最新の1点(p3)を用いてスプライン補完を行い、
+    // p1〜p2間を補完する
+    //
+    // 過去の点がない場合、最新の1点を用いてjointを描画する
+    //
+    // 過去の点が1または2点ある場合、最も新しい過去の点と最新の1点を用いてセグメントを描画する
+    while (waitPoint.length > 0) {
+        const current = waitPoint.shift()!
+        switch (pendingStroke.length) {
+            case 0:
+                break;
+            case 1:
+                break;
+            case 2:
+                const first = pendingStroke[pendingStroke.length - 2]!
+                const second = pendingStroke[pendingStroke.length - 1]!
+                renderJoint(hr.convertToJoint(first))
+                renderSegment(hr.getSegment(first, second))
+                renderJoint(hr.convertToJoint(second))
+                break;
+            default: //spline
+                const p0 = pendingStroke[pendingStroke.length - 3]!
+                const p1 = pendingStroke[pendingStroke.length - 2]!
+                const p2 = pendingStroke[pendingStroke.length - 1]!
+                const p3 = current
+                const startPressure = p1.pressure
+                const endPressure = p2.pressure
+                const dPressure = (endPressure - startPressure) / INTERPORATE_POINTS
+                const ps = spline.interpolate(p0, p1, p2, p3, 0.5, INTERPORATE_POINTS)
+                const points = [...ps, p2]
+                let prev: InputPoint = p1
+                points.forEach((p, i) => {
+                    p.pressure = startPressure + i * dPressure
+                    const seg = hr.getSegment(prev, p)
+                    renderSegment(seg)
+                    renderJoint(seg.end)
+                    prev = p
+                })
+                break;
         }
+        pendingStroke.push(current)
+    }
 
-        last = first
+    if (flush) { // 最後の２点間のセグメントは処理できてないのでflush時に描画
+        const seg = hr.getSegment(pendingStroke[pendingStroke.length - 2]!, pendingStroke[pendingStroke.length - 1]!)
+        renderSegment(seg)
+        renderJoint(seg.end)
+
+        submittedStrokes.push(pendingStroke)
+        pendingStroke.splice(0)
     }
 
     rafId = null
 }
+
+let pointerDown = false
 
 const pointFromEvent = (ev: PointerEvent): InputPoint => ({
     x: ev.offsetX,
@@ -132,30 +156,59 @@ const pointFromEvent = (ev: PointerEvent): InputPoint => ({
 })
 
 const handlePointerDown = (ev: PointerEvent) => {
+    pointerDown = true
+
     ev.preventDefault()
     const canvas = document.getElementById(CANVAS_ID) as HTMLCanvasElement
     canvas.setPointerCapture(ev.pointerId)
 
-    pendingStroke.push({ type: 'inkdown', point: pointFromEvent(ev) })
+    pushToWaitPoint(pointFromEvent(ev))
     render()
 }
 
 const handlePointerUp = (ev: PointerEvent) => {
     ev.preventDefault()
-    const canvas = document.getElementById(CANVAS_ID) as HTMLCanvasElement
-    canvas.releasePointerCapture(ev.pointerId)
+    pushToWaitPoint(pointFromEvent(ev))
+    render(true)
 
-    pendingStroke.push({ type: 'inkup', point: pointFromEvent(ev) })
-    render()
+    pointerDown = false
 }
 
 const handlePointerMove = (ev: PointerEvent) => {
+    if (!pointerDown) {
+        return
+    }
+
     ev.preventDefault()
 
     if (!rafId) {
-        pendingStroke.push({ type: 'inkdraw', point: pointFromEvent(ev) })
-        rafId = requestAnimationFrame(render)
+        pushToWaitPoint(pointFromEvent(ev))
+        rafId = requestAnimationFrame(() => render())
+    } else {
+        console.log("Skip move")
     }
+}
+
+const pushToWaitPoint = (p: InputPoint): boolean => {
+    if (waitPoint.length > 0) {
+        const last = waitPoint[waitPoint.length - 1]!
+        if ((last.x === p.x) && (last.y === p.y)) {
+            // pressureが大きい方を残す
+            const pressure = Math.max(last.pressure, p.pressure)
+            waitPoint[waitPoint.length - 1]!.pressure = pressure
+            return false
+        }
+    } else if (pendingStroke.length > 0) {
+        const last = pendingStroke[pendingStroke.length - 1]!
+        if ((last.x === p.x) && (last.y === p.y)) {
+            const pressure = Math.max(last.pressure, p.pressure)
+            pendingStroke[pendingStroke.length - 1]!.pressure = pressure
+            return false
+        }
+    }
+
+    waitPoint.push(p)
+    return true
 }
 </script>
 
