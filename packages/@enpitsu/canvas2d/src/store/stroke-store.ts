@@ -41,6 +41,17 @@ export class StrokeStore {
         return this.strokeHistory
     }
     updateConfirmedStrokes(strokes: Stroke[]): void {
-        this.strokeHistory = strokes
+        const mods: Stroke[] = strokes.map(stroke => {
+            // Update the bbox for each stroke
+            const left = Math.min(...stroke.points.map(p => p.x))
+            const right = Math.max(...stroke.points.map(p => p.x))
+            const top = Math.min(...stroke.points.map(p => p.y))
+            const bottom = Math.max(...stroke.points.map(p => p.y))
+            return {
+                ...stroke,
+                bbox: { left, right, top, bottom }
+            }
+        })
+        this.strokeHistory = mods
     }
 }
