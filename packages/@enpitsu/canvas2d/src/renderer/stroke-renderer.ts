@@ -1,8 +1,8 @@
-import { SimpleStore } from "store";
-import { ViewportTransformer } from "./transformer";
-import type { InputPoint, Pen, Point, Renderer, Stroke } from "./types";
+import { StrokeStore } from "store/stroke-store";
+import { ViewportTransformer } from "../transformer/viewport-transformer";
+import type { InputPoint, Pen, Point, Renderer, Stroke } from "../types";
 
-export const useRenderer = (offscreenCanvas: OffscreenCanvas, transformer: ViewportTransformer, model: SimpleStore): Renderer => {
+export const useStrokeRenderer = (offscreenCanvas: OffscreenCanvas, transformer: ViewportTransformer, model: StrokeStore): Renderer => {
     const ctx = offscreenCanvas.getContext('2d', {
         antialias: true,
         desynchronized: false
@@ -13,6 +13,7 @@ export const useRenderer = (offscreenCanvas: OffscreenCanvas, transformer: Viewp
             ctx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height)
         },
         renderAll: () => {
+            ctx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height)
             _renderAll(ctx, model, transformer)
         },
         requestRenderAll: (rendered?: () => void) => {
@@ -48,13 +49,11 @@ export const useRenderer = (offscreenCanvas: OffscreenCanvas, transformer: Viewp
  * @param offscreenCanvas 
  * @param model 
  */
-const _renderCurrentStroke = (ctx: OffscreenCanvasRenderingContext2D, model: SimpleStore, transformer: ViewportTransformer) => {
+const _renderCurrentStroke = (ctx: OffscreenCanvasRenderingContext2D, model: StrokeStore, transformer: ViewportTransformer) => {
     const stroke = model.getCurrentStroke()
     if (!stroke) {
         return
     }
-
-    
 
     // 描画待ちのpointを取得
     if (stroke.waitRenderPoints.length === 0) {
@@ -75,15 +74,15 @@ const _renderCurrentStroke = (ctx: OffscreenCanvasRenderingContext2D, model: Sim
  * @param offscreenCanvas 
  * @param model 
  */
-const _renderConfirmedStrokes = (ctx: OffscreenCanvasRenderingContext2D, model: SimpleStore, transformer: ViewportTransformer) => {
+const _renderConfirmedStrokes = (ctx: OffscreenCanvasRenderingContext2D, model: StrokeStore, transformer: ViewportTransformer) => {
+    // 未描画のストロークを取得し、描画する
     const strokes = model.getWaitRenderStrokes()
     strokes.forEach(stroke => {
         __renderStroke(ctx, stroke, transformer)
     })
 
-    const newStrokes = model.getConfirmedStrokes()
-    newStrokes.push(...strokes)
-    model.updateConfirmedStrokes(newStrokes)
+    // 描画済みとして、バッファから削除する
+    model.clearWaitRenderStrokes()
 }
 
 /**
@@ -91,7 +90,7 @@ const _renderConfirmedStrokes = (ctx: OffscreenCanvasRenderingContext2D, model: 
  * @param ctx 
  * @param model 
  */
-const _renderAll = (ctx: OffscreenCanvasRenderingContext2D, model: SimpleStore, transformer: ViewportTransformer) => {
+const _renderAll = (ctx: OffscreenCanvasRenderingContext2D, model: StrokeStore, transformer: ViewportTransformer) => {
     const strokes = model.getConfirmedStrokes()
     const full = [...strokes]
     const current = model.getCurrentStroke()
@@ -110,10 +109,6 @@ const _renderAll = (ctx: OffscreenCanvasRenderingContext2D, model: SimpleStore, 
  * @param stroke 
  */
 const __renderStroke = (ctx: OffscreenCanvasRenderingContext2D, stroke: Stroke, transformer: ViewportTransformer, unrenderedOnly = false) => {
-    if (stroke.points.length === 0) {
-        return
-    }
-
     // matrixの反映
 
     const [a, b, c, d, e, f] = transformer.getTransformForRender()
@@ -127,13 +122,16 @@ const __renderStroke = (ctx: OffscreenCanvasRenderingContext2D, stroke: Stroke, 
     ctx.setTransform(matrix)
 
     if (unrenderedOnly) {
-        // 描画済みの最後の点と、未描画の最初の点とを繋ぐ
-        ___renderSegment(
-            ctx,
-            stroke.points[stroke.points.length - 1],
-            stroke.waitRenderPoints[0],
-            stroke.pen
-        )
+        if (stroke.points.length > 0) {
+            // 描画済みの最後の点と、未描画の最初の点とを繋ぐ
+            ___renderSegment(
+                ctx,
+                stroke.points[stroke.points.length - 1],
+                stroke.waitRenderPoints[0],
+                stroke.pen
+            )
+        }
+
         // strokeの描画
         ___renderJoint(ctx, stroke.waitRenderPoints[0], stroke.pen)
         let prev = stroke.waitRenderPoints[0]
@@ -141,7 +139,7 @@ const __renderStroke = (ctx: OffscreenCanvasRenderingContext2D, stroke: Stroke, 
             ___renderSegment(ctx, prev, current, stroke.pen)
             prev = current
         })
-    } else {
+    } else if (stroke.points.length > 0) {
         // strokeの描画
         ___renderJoint(ctx, stroke.points[0], stroke.pen)
         let prev = stroke.points[0]

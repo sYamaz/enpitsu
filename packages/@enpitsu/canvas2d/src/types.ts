@@ -5,8 +5,8 @@ export interface Point {
 }
 
 export interface Controller {
-    startInput: () => void
-    endInput: () => void,
+    startInput: (viewportPoint: InputPoint) => void
+    endInput: (viewportPoint: InputPoint) => void,
     addInputPoint: (viewportPoint: InputPoint) => void
 }
 
@@ -42,6 +42,12 @@ export interface Stroke {
     waitCalcPoints: InputPoint[]
     waitRenderPoints: InputPoint[]
     points: InputPoint[]
+    bbox?: {
+        left: number
+        top: number
+        right: number
+        bottom: number
+    }
 }
 
 //--------------------

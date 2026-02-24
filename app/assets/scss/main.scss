@@ -1,10 +1,12 @@
+
+
 html,
 body {
   height: 100dvh;
+  margin: 0;
   /* 速記時のpointerイベント落ちに効くかと思ったけどそうでもなさそう
   user-select: none;
   touch-action: none;
-  margin: 0;
   overflow-y: hidden; */
 }
 /* 速記時のpointerイベント落ちに効くかと思ったけどそうでもなさそう

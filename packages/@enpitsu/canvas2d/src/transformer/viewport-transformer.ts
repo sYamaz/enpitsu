@@ -4,7 +4,7 @@ export class ViewportTransformer {
      * 拡大率
      * 
      */
-    private zoomRatio = 1
+    zoomRatio = 1
 
     /**
      * x方向の移動
@@ -16,25 +16,14 @@ export class ViewportTransformer {
      */
     dy = 0
 
-    private readonly zoomStep: number
-
     private readonly defaultZoom: number
 
     private readonly dpr: number
 
-    constructor(zoomStep = 0.1, defaultZoom = 1, dpr = 1) {
-        this.zoomStep = zoomStep
+    constructor(defaultZoom = 1, dpr = 1) {
         this.defaultZoom = defaultZoom
         this.zoomRatio = this.defaultZoom
         this.dpr = dpr
-    }
-
-    incrementZoomRatio = () => {
-        this.zoomRatio += this.zoomStep
-    }
-
-    decrementZoomRatio = () => {
-        this.zoomRatio -= this.zoomStep
     }
 
     resetZoomRatio = () => {

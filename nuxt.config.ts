@@ -2,11 +2,20 @@
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
-  modules: [],
-  css: ['~/assets/css/main.css'],
+  modules: ['@nuxt/icon'],
+  css: ['~/assets/scss/main.scss'],
   devServer: {
     host: "0.0.0.0",
     port: 3000
+  },
+  vite: {
+    css: {
+      preprocessorOptions: {
+        scss: {
+          additionalData: '@use "~/assets/scss/_color.scss" as *;',
+        },
+      },
+    },
   },
   // 速記でのイベント落ち回避に必要かと思ったがそうでもなさそう
   // app: {

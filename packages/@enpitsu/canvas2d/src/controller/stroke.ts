@@ -1,24 +1,47 @@
-import { SimpleStore } from "store";
-import { ViewportTransformer } from "../transformer";
+import { StrokeStore } from "store/stroke-store";
+import { ViewportTransformer } from "../transformer/viewport-transformer";
 import { Controller, InputPoint, Pen } from "../types";
 import { Simple2DCatmullRomSpline } from "@syamaz/catmull-rom-spline";
 
-export const useEnpitsu = (transformer: ViewportTransformer, model: SimpleStore, splinePoints: number, pen: Pen): Controller => {
+export interface EnpitsuConfig {
+    splinePoints: number
+    pen: Pen
+    startInputCallback: () => void
+    endInputCallback: () => void
+    addInputPointCallback: () => void
+}
+
+export const useStroke = (
+    transformer: ViewportTransformer, 
+    model: StrokeStore, 
+    config: Partial<EnpitsuConfig>): Controller => {
     const spline = new Simple2DCatmullRomSpline()
+    const determinedConfig: EnpitsuConfig = {
+        splinePoints: config.splinePoints ?? 10,
+        pen: config.pen ?? { r: 50, g: 50, b: 50, maxThickness: 0.5, minThickness: 4, maxColorRatio: 1, minColorRatio: 0.5 },
+        startInputCallback: config.startInputCallback ?? (() => { }),
+        endInputCallback: config.endInputCallback ?? (() => { }),
+        addInputPointCallback: config.addInputPointCallback ?? (() => { })
+    }
     return {
-        startInput: () => {
-            startStroke(pen, model)
+        startInput: (viewportPoint: InputPoint) => {
+            startStroke(determinedConfig.pen, model)
+            addStrokePoint(viewportPoint, transformer, model, spline, determinedConfig.splinePoints)
+            determinedConfig.startInputCallback()
         },
-        endInput: () => {
-            endStroke(model, spline, splinePoints)
+        endInput: (viewportPoint: InputPoint) => {
+            addStrokePoint(viewportPoint, transformer, model, spline, determinedConfig.splinePoints)
+            endStroke(model, spline, determinedConfig.splinePoints)
+            determinedConfig.endInputCallback()
         },
         addInputPoint: (viewportPoint: InputPoint) => {
-            addStrokePoint(viewportPoint, transformer, model, spline, splinePoints)
+            addStrokePoint(viewportPoint, transformer, model, spline, determinedConfig.splinePoints)
+            determinedConfig.addInputPointCallback()
         }
     }
 }
 
-const startStroke = (pen: Pen, model: SimpleStore) => {
+const startStroke = (pen: Pen, model: StrokeStore) => {
     model.confirmCurrentStroke()
 
     model.updateCurrentStroke({
@@ -29,7 +52,7 @@ const startStroke = (pen: Pen, model: SimpleStore) => {
     })
 }
 
-const endStroke = (model: SimpleStore, spline: Simple2DCatmullRomSpline, splinePoints: number) => {
+const endStroke = (model: StrokeStore, spline: Simple2DCatmullRomSpline, splinePoints: number) => {
     const current = model.getCurrentStroke()
     if (!current) {
         throw new Error("current stroke missing")
@@ -59,7 +82,7 @@ const endStroke = (model: SimpleStore, spline: Simple2DCatmullRomSpline, splineP
     model.confirmCurrentStroke()
 }
 
-const addStrokePoint = (viewportPoint: InputPoint, transformer: ViewportTransformer, model: SimpleStore, spline: Simple2DCatmullRomSpline, splinePoints: number) => {
+const addStrokePoint = (viewportPoint: InputPoint, transformer: ViewportTransformer, model: StrokeStore, spline: Simple2DCatmullRomSpline, splinePoints: number) => {
     // viewport座標からraw座標(絶対座標)に変換する
     const rendererMatrix = new DOMMatrix(transformer.getTransformForController())
     const controllerMatrix = rendererMatrix.inverse()

@@ -8,17 +8,26 @@ export type {
 } from './types'
 
 export {
-    SimpleStore
-} from './store'
+    StrokeStore
+} from './store/stroke-store'
 
 export {
     ViewportTransformer
-} from './transformer'
+} from './transformer/viewport-transformer'
 
 export {
-    useEnpitsu
-} from './controller/enpitsu'
+    useStroke
+} from './controller/stroke'
 
 export {
-    useRenderer
-} from './renderer'
+    useRemover
+} from './controller/remover'
+
+export {
+    useEraser
+} from './controller/eraser'
+
+
+export {
+    useStrokeRenderer
+} from './renderer/stroke-renderer'
