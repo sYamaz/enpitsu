@@ -1,87 +1,47 @@
-import { StrokeStore } from "store/stroke-store"
-import { ViewportTransformer } from "transformer/viewport-transformer"
-import { Controller, InputPoint, Point, Stroke } from "types"
+import { StrokeStore } from "store/stroke-store";
+import { BasicTool } from "./_basic";
+import { ViewportTransformer } from "transformer/viewport-transformer";
+import { InputPoint, Point, Stroke } from "types";
 
-export interface EraserConfig {
-    size: number
-    afterStartInput: () => void
-    afterEndInput: () => void
-    beforeAddInputPoint: () => void
-    afterAddInputPoint: () => void
-}
+export class EraserTool extends BasicTool {
+    size: number = 20
+    private cursor: InputPoint | null = null
+    private readonly model: StrokeStore
 
-export const useEraser = (
-    offscreenCanvas: OffscreenCanvas,
-    transformer: ViewportTransformer,
-    model: StrokeStore,
-    config: Partial<EraserConfig>): Controller => {
-    const ctx = offscreenCanvas.getContext('2d')!
-
-    const determinedConfig: EraserConfig = {
-        size: config.size ?? 20,
-        afterStartInput: config.afterStartInput ?? (() => { }),
-        afterEndInput: config.afterEndInput ?? (() => { }),
-        afterAddInputPoint: config.afterAddInputPoint ?? (() => { }),
-        beforeAddInputPoint: config.beforeAddInputPoint ?? (() => { })
+    constructor(transformer: ViewportTransformer, model: StrokeStore) {
+        super(transformer)
+        this.model = model
     }
 
-    return {
-        startInput: (viewportPoint: InputPoint) => {
-            startInput(determinedConfig)
-            determinedConfig.afterStartInput()
-        },
-        endInput: (viewportPoint: InputPoint) => {
-            endInput(determinedConfig)
-            determinedConfig.afterEndInput()
-        },
-        addInputPoint: (viewportPoint: InputPoint) => {
-            determinedConfig.beforeAddInputPoint()
-            addInputPoint(ctx, viewportPoint, model, transformer, determinedConfig)
-            determinedConfig.afterAddInputPoint()
+    protected _render(ctx: OffscreenCanvasRenderingContext2D): void {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
+        if (!this.cursor) {
+            return
         }
+        
+        const path = new Path2D()
+        path.arc(this.cursor.x, this.cursor.y, this.size, 0, Math.PI * 2)
+        ctx.strokeStyle = "rgba(0, 0, 255, 0.5)"
+        ctx.stroke(path)
     }
-}
-
-const startInput = (config: EraserConfig) => {
-    // 何もしない
-}
-
-const endInput = (config: EraserConfig) => {
-    // 何もしない
-}
-
-const addInputPoint = (ctx: OffscreenCanvasRenderingContext2D, viewportInput: InputPoint, model: StrokeStore, transformer: ViewportTransformer, config: EraserConfig) => {
-    // viewport座標からraw座標(絶対座標)に変換する
-    const rendererMatrix = new DOMMatrix(transformer.getTransformForController())
-    const controllerMatrix = rendererMatrix.inverse()
-
-    const { x, y } = controllerMatrix.transformPoint(new DOMPoint(viewportInput.x, viewportInput.y))
-    const rawInputPoint: InputPoint = {
-        x,
-        y,
-        pressure: viewportInput.pressure,
-        tags: viewportInput.tags
+    protected _onPointerDown = (rawPoint: InputPoint): void => {
+        this.cursor = rawPoint
     }
 
-    // render
-    const [a, b, c, d, e, f] = transformer.getTransformForRender()
-    const matrix = new DOMMatrix()
-    matrix.a = a
-    matrix.b = b
-    matrix.c = c
-    matrix.d = d
-    matrix.e = e
-    matrix.f = f
-    ctx.setTransform(matrix)
-    const path = new Path2D()
-    path.arc(rawInputPoint.x, rawInputPoint.y, config.size, 0, 2 * Math.PI)
-    path.closePath()
-    ctx.stroke(path)
+    protected _onPointerMove = (rawPoint: InputPoint, isPointerDown: boolean): void => {
+        if(!isPointerDown) return
 
-    const strokes = model.getConfirmedStrokes()
-    const modifiedStrokes = eraseAt(strokes, rawInputPoint, config.size)
-    model.updateConfirmedStrokes(modifiedStrokes)
+        this.cursor = rawPoint
+
+        const stroke = this.model.strokes
+        const modifiedStrokes = eraseAt(stroke, rawPoint, this.size)
+        this.model.updateConfirmedStrokes(modifiedStrokes)
+    }
+    protected _onPointerUp = (rawPoint: InputPoint): void => {
+        this.cursor = null
+    }    
 }
+
 
 /**
  * 線分と円の交差点を求める
@@ -177,7 +137,7 @@ const splitStrokeByEraser = (
                 // 円の中に入る → 現在のストローク終了
                 currentPoints.push(point)
                 if (currentPoints.length >= 2) {
-                    result.push({ ...stroke, points: currentPoints, waitRenderPoints: [], waitCalcPoints: [], bbox: undefined })
+                    result.push({ ...stroke, points: currentPoints, bbox: undefined })
                 }
                 currentPoints = []
             }
@@ -189,7 +149,7 @@ const splitStrokeByEraser = (
 
     // 残ったpointsを追加
     if (currentPoints.length >= 2) {
-        result.push({ ...stroke, points: currentPoints, waitRenderPoints: [], waitCalcPoints: [], bbox: undefined })
+        result.push({ ...stroke, points: currentPoints, bbox: undefined })
     }
 
     return result

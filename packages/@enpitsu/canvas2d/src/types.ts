@@ -16,8 +16,40 @@ export interface Renderer {
     requestRenderAll: (rendered?: () => void) => void
     renderCurrentStroke: () => void
     requestRenderCurrentStroke: (rendered?: () => void) => void,
-    renderConfirmedStrokes: () => void,
-    requestRenderConfirmedStrokes: (rendered?: () => void) => void
+    render: () => void,
+    requestRender: (rendered?: () => void) => void
+}
+
+export interface Selection {
+    selectedStrokes: Stroke[]
+    unselectedStrokes: Stroke[]
+    selectedBBox: {
+        left: number
+        right: number
+        top: number
+        bottom: number
+        offsetX: number
+        offsetY: number
+    }
+}
+
+export interface ToolConfigureStructure {
+    'pen': {
+        pen: Pen
+    },
+    'remover': {
+        size: number
+    },
+    'eraser': {
+        size: number
+    },
+    'selector': {
+
+    }
+}
+
+export interface Enpitsu {
+    useTool<k extends keyof ToolConfigureStructure>(type: k): void
 }
 
 //--------------------
@@ -39,15 +71,20 @@ export interface InputPoint extends Point {
  */
 export interface Stroke {
     pen: Pen
-    waitCalcPoints: InputPoint[]
-    waitRenderPoints: InputPoint[]
     points: InputPoint[]
+    needRender: boolean
+    offset?: Point
     bbox?: {
         left: number
         top: number
         right: number
         bottom: number
     }
+}
+
+export interface CurrentStroke extends Stroke {
+    waitCalcPoints: InputPoint[]
+    waitRenderPoints: InputPoint[]
 }
 
 //--------------------
@@ -87,33 +124,16 @@ export interface Pen {
     b: number
 }
 
-interface ToolStructure {
-    // ペン
-    pen: Pen,
-    // // 消しゴム
-    // eraser: {
-    //     thickness: number
-    // }
+export interface Tool extends ToolRenderer, ToolController {
+
 }
 
-export type ToolConfig = {
-    [K in keyof ToolStructure]: {
-        key: string
-        type: K
-        config: ToolStructure[K]
-    }
-}[keyof ToolStructure]
-
-export interface ToolStore {
-    setTool(tool: ToolConfig): void
-
-    selectTool(key: string): boolean
-
-    getSelectedTool(): Tool
+export interface ToolRenderer {
+    render: (ctx: OffscreenCanvasRenderingContext2D) => void
 }
 
-export interface Tool {
-    getToolConfig(): ToolConfig
-    drawJoint(ctx: OffscreenCanvasRenderingContext2D, p: InputPoint): void
-    drawSegment(ctx: OffscreenCanvasRenderingContext2D, pi: InputPoint, pj: InputPoint): void
+export interface ToolController {
+    onPointerDown: (viewportPoint: InputPoint) => void
+    onPointerMove: (viewportPoint: InputPoint) => void
+    onPointerUp: (viewportPoint: InputPoint) => void
 }

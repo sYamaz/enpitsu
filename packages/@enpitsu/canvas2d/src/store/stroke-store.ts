@@ -1,45 +1,48 @@
 import type { Stroke } from "../types";
 
 export class StrokeStore {
-    private currentStroke: Stroke | null = null
-    private waitRenderStrokeHistory: Stroke[] = []
-    private strokeHistory: Stroke[] = []
+    private _strokeHistory: Stroke[] = []
+    private _needClear = false
 
-    getCurrentStroke(): Stroke | null {
-        return this.currentStroke
-    }
-    updateCurrentStroke(stroke: Stroke): void {
-        this.currentStroke = stroke
-    }
-    confirmCurrentStroke(): void {
-        if (this.currentStroke) {
-            this.currentStroke.waitCalcPoints.splice(0)
-            this.currentStroke.waitCalcPoints.splice(0)
-
-            // BBoxの計算をする
-            const left = Math.min(...this.currentStroke.points.map(p => p.x))
-            const right = Math.max(...this.currentStroke.points.map(p => p.x))
-            const top = Math.min(...this.currentStroke.points.map(p => p.y))
-            const bottom = Math.max(...this.currentStroke.points.map(p => p.y))
-            this.currentStroke.bbox = { left, right, top, bottom }
-
-            this.waitRenderStrokeHistory.push(this.currentStroke)
-            this.strokeHistory.push(this.currentStroke)
-        }
-        this.currentStroke = null
+    get needClear() {
+        return this._needClear
     }
 
-    getWaitRenderStrokes(): Stroke[] {
-        return this.waitRenderStrokeHistory
+    set needClear(value: boolean) {
+        this._needClear = value
     }
 
-    clearWaitRenderStrokes(): void {
-        this.waitRenderStrokeHistory.splice(0)
+    forEachStroke = (callback: (stroke: Stroke) => Stroke) => {
+        this._strokeHistory = this._strokeHistory.map(callback)
     }
 
-    getConfirmedStrokes(): Stroke[] {
-        return this.strokeHistory
+    get strokes() {
+        return [...this._strokeHistory]
     }
+
+    pushStrokes(...strokes: Stroke[]) {
+        const mods: Stroke[] = strokes.map(stroke => {
+            // Update the bbox for each stroke
+            const left = Math.min(...stroke.points.map(p => p.x))
+            const right = Math.max(...stroke.points.map(p => p.x))
+            const top = Math.min(...stroke.points.map(p => p.y))
+            const bottom = Math.max(...stroke.points.map(p => p.y))
+            return {
+                ...stroke,
+                bbox: { left, right, top, bottom },
+                needRender: true
+            }
+        })
+        this._strokeHistory.push(...mods)
+    }
+
+    /**
+     * ストロークを置き換える。
+     * 主に、ストロークの内容を変更した際に呼び出す。
+     * 
+     * bboxの再計算、needRenderのtrue化を行う。
+     * @param strokes 
+     */
     updateConfirmedStrokes(strokes: Stroke[]): void {
         const mods: Stroke[] = strokes.map(stroke => {
             // Update the bbox for each stroke
@@ -49,9 +52,11 @@ export class StrokeStore {
             const bottom = Math.max(...stroke.points.map(p => p.y))
             return {
                 ...stroke,
-                bbox: { left, right, top, bottom }
+                bbox: { left, right, top, bottom },
+                needRender: true
             }
         })
-        this.strokeHistory = mods
+        this._strokeHistory = [...mods]
+        this._needClear = true
     }
 }

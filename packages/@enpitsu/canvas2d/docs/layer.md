@@ -1,22 +1,24 @@
 # layer
 
-## renderer
+- フィルタレイヤー
+- ツールレイヤー
+- 結合レイヤー
+- バックグラウンドレイヤー
 
-```mermaid
-flowchart
+で構成される。
 
-app --> |delegate render| renderer
-renderer --> transformer
-renderer --> model
-```
+## フィルタレイヤー
 
-## stroke
+グリッドなどのユーザー入力をサポートするためのレイヤー
 
-```mermaid
-flowchart
+## ツールレイヤー
 
-app --> |pointer down/up/move| controller["enpitsu"]
+消しゴムやペン、セレクタといった入力機能のためのレイヤー
 
-controller --> model
-controller --> transformer
-```
+## 結合レイヤー
+
+入力確定したストロークを表示するためのレイヤー
+
+## バックグラウンドレイヤー
+
+背景表示のためのレイヤー
