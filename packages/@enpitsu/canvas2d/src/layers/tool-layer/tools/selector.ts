@@ -111,7 +111,20 @@ export class SelectorTool extends BasicTool {
 
     protected _onPointerUp(rawPoint: InputPoint): void {
         if (this.state.type === 'dragging') {
-            this.state = { type: 'selected', selection: this.state.selection }
+            const { selection } = this.state
+            // offset を points に焼き込む（他ツールが offset を意識しなくて済むよう）
+            const committed = selection.selectedStrokes.map(s => ({
+                ...s,
+                points: s.points.map(p => ({
+                    ...p,
+                    x: p.x + (s.offset?.x ?? 0),
+                    y: p.y + (s.offset?.y ?? 0),
+                })),
+                offset: undefined,
+                bbox: undefined,
+            }))
+            this.model.updateConfirmedStrokes([...selection.unselectedStrokes, ...committed])
+            this.state = { type: 'selected', selection: { ...selection, selectedStrokes: committed } }
             return
         }
 
