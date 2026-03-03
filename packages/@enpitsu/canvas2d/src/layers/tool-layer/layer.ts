@@ -44,6 +44,7 @@ export const useToolLayer = (
         },
         onPointerUp: (p: InputPoint) => {
             tool?.onPointerUp(p)
+            renderer.clear()
             renderer.requestRender()
         }
     }
