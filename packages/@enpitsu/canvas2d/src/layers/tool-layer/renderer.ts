@@ -9,6 +9,8 @@ export const useToolLayerRenderer = (
     let tool: Tool | null = null
 
     const _render = (ctx: OffscreenCanvasRenderingContext2D) => {
+        ctx.setTransform(1, 0, 0, 1, 0, 0)
+        ctx.clearRect(0, 0, offscreen.width, offscreen.height)
         if(tool) {
             tool.render(ctx)
         }

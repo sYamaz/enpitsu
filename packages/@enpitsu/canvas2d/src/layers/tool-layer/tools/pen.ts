@@ -5,8 +5,12 @@ import { BasicTool } from "./_basic";
 import { ViewportTransformer } from "transformer/viewport-transformer";
 import { CurrentStroke, InputPoint, Pen } from "types";
 
+type PenState =
+    | { type: 'idle' }
+    | { type: 'drawing'; stroke: CurrentStroke }
+
 export class PenTool extends BasicTool {
-    protected stroke: CurrentStroke | null = null
+    private state: PenState = { type: 'idle' }
     private readonly spline = new Simple2DCatmullRomSpline()
     private readonly splinePoints = 10
     private readonly store: StrokeStore
@@ -27,48 +31,47 @@ export class PenTool extends BasicTool {
     }
 
     protected _render = (ctx: OffscreenCanvasRenderingContext2D): void => {
-        if (!this.stroke) {
-            return
-        }
-
-        // 描画待ちのpointを取得
-        if (this.stroke.waitRenderPoints.length === 0) {
-            return
-        }
-
-        // 描画完了際終点と描画待ちの最初の点を繋ぐ
-        this.__renderStroke(ctx, this.stroke)
-
-        // 描画待ちのpointを描画後バッファに追加
-        this.stroke.points.push(...this.stroke.waitRenderPoints)
-        this.stroke.waitRenderPoints.splice(0)
+        if (this.state.type !== 'drawing') return
+        const { stroke } = this.state
+        if (stroke.points.length === 0) return
+        let prev = stroke.points[0]
+        renderJoint(ctx, prev, stroke.pen)
+        stroke.points.slice(1).forEach(current => {
+            renderSegment(ctx, prev, current, stroke.pen)
+            renderJoint(ctx, current, stroke.pen)
+            prev = current
+        })
     }
-    protected _onPointerDown = (rawPoint: InputPoint): void => {
-        this.stroke = {
-            pen: this.pen,
-            points: [],
-            needRender: true,
-            waitCalcPoints: [],
-            waitRenderPoints: [],
-            bbox: { left: rawPoint.x, right: rawPoint.x, top: rawPoint.y, bottom: rawPoint.y }
-        }
 
+    protected _onPointerDown = (rawPoint: InputPoint): void => {
+        this.state = {
+            type: 'drawing',
+            stroke: {
+                pen: this.pen,
+                points: [],
+                needRender: true,
+                waitCalcPoints: [],
+                bbox: { left: rawPoint.x, right: rawPoint.x, top: rawPoint.y, bottom: rawPoint.y }
+            }
+        }
         this._addPoint(rawPoint)
     }
+
     protected _onPointerMove = (rawPoint: InputPoint, isPointerDown: boolean): void => {
         if (!isPointerDown) return
-
         this._addPoint(rawPoint)
     }
+
     protected _onPointerUp = (rawPoint: InputPoint): void => {
         this._addPoint(rawPoint)
 
-        if (!this.stroke) {
-            throw new Error("stroke is null")
+        if (this.state.type !== 'drawing') {
+            throw new Error("state is not drawing")
         }
-        const pendingPoints = this.stroke.waitCalcPoints
+        const { stroke } = this.state
+        const pendingPoints = stroke.waitCalcPoints
         // 最後は p, INTERPORATE_POINTS, p, pとなってるはず
-        const p0 = this.stroke.points[this.stroke.points.length - 1 - this.splinePoints]
+        const p0 = stroke.points[stroke.points.length - 1 - this.splinePoints]
         const p1 = pendingPoints[0]
         const p2 = pendingPoints[1]
         const p3 = pendingPoints[1]
@@ -83,24 +86,23 @@ export class PenTool extends BasicTool {
                 tags: ['spline'],
             }
         })
-        this.stroke.waitRenderPoints.push(p1, ...points, p2)
-        this.stroke.waitCalcPoints.splice(0)
-        this.store.pushStrokes(this.stroke)
-        this.stroke = null
+        stroke.points.push(p1, ...points, p2)
+        stroke.waitCalcPoints.splice(0)
+        this.store.pushStrokes(stroke)
+        this.state = { type: 'idle' }
     }
 
     protected _addPoint = (rawPoint: InputPoint): void => {
-        
-
-        if (!this.stroke) {
-            throw new Error("stroke is null")
+        if (this.state.type !== 'drawing') {
+            throw new Error("state is not drawing")
         }
-        const pendingPoints = this.stroke.waitCalcPoints
+        const { stroke } = this.state
+        const pendingPoints = stroke.waitCalcPoints
 
-        if (this.stroke.points.length === 0) {
+        if (stroke.points.length === 0) {
             if (pendingPoints.length < 2) {
                 // stroke1点目、2点目の時はバッファに追加して終わり
-                this.stroke.waitCalcPoints.push(rawPoint)
+                stroke.waitCalcPoints.push(rawPoint)
                 return
             } else if (pendingPoints.length === 2) {
                 // 3点目の場合は、0, 0, 1, currentでspline補間を行い、補間点を取得する
@@ -108,7 +110,6 @@ export class PenTool extends BasicTool {
                 const p1 = p0
                 const p2 = pendingPoints[0]
                 const p3 = rawPoint
-
 
                 const dp = (p2.pressure - p1.pressure) / this.splinePoints
                 const ps = this.spline.interpolate(p0, p1, p2, p3, 0.5, this.splinePoints)
@@ -121,13 +122,13 @@ export class PenTool extends BasicTool {
                     }
                 })
 
-                this.stroke.waitRenderPoints.push(p1, ...points)
-                this.stroke.waitCalcPoints.push(rawPoint)
+                stroke.points.push(p1, ...points)
+                stroke.waitCalcPoints.push(rawPoint)
                 return
             }
         }
 
-        const p0 = this.stroke.points[this.stroke.points.length - 1 - this.splinePoints]
+        const p0 = stroke.points[stroke.points.length - 1 - this.splinePoints]
         const p1 = pendingPoints.shift()!
         const p2 = pendingPoints[0]
         const p3 = rawPoint
@@ -143,34 +144,7 @@ export class PenTool extends BasicTool {
             }
         })
 
-        this.stroke.waitRenderPoints.push(p1, ...points)
-        this.stroke.waitCalcPoints.push(rawPoint)
-    }
-
-    /**
-    * ストロークを描画します
-    * @param ctx 
-    * @param stroke 
-    */
-    __renderStroke = (ctx: OffscreenCanvasRenderingContext2D, stroke: CurrentStroke) => {
-        if (stroke.points.length > 0) {
-            // 描画済みの最後の点と、未描画の最初の点とを繋ぐ
-            renderSegment(
-                ctx,
-                stroke.points[stroke.points.length - 1],
-                stroke.waitRenderPoints[0],
-                stroke.pen
-            )
-            renderJoint(ctx, stroke.waitRenderPoints[0], stroke.pen)
-        }
-
-        // strokeの描画
-        renderJoint(ctx, stroke.waitRenderPoints[0], stroke.pen)
-        let prev = stroke.waitRenderPoints[0]
-        stroke.waitRenderPoints.slice(1).forEach((current) => {
-            renderSegment(ctx, prev, current, stroke.pen)
-            renderJoint(ctx, current, stroke.pen)
-            prev = current
-        })
+        stroke.points.push(p1, ...points)
+        stroke.waitCalcPoints.push(rawPoint)
     }
 }

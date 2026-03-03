@@ -5,14 +5,17 @@ import { BasicTool } from "./_basic";
 import { ViewportTransformer } from "transformer/viewport-transformer";
 import { CurrentStroke, InputPoint, Pen, Stroke, Selection, Point } from "types";
 
+type SelectorState =
+    | { type: 'idle' }
+    | { type: 'drawing'; stroke: CurrentStroke }
+    | { type: 'selected'; selection: Selection }
+    | { type: 'dragging'; selection: Selection; origin: Point }
+
 export class SelectorTool extends BasicTool {
     private readonly model: StrokeStore
     private readonly spline = new Simple2DCatmullRomSpline()
     private readonly splinePoints = 10
-    private stroke: CurrentStroke | null = null
-    private selection: Selection | null = null
-    private offsetBaseX: number = 0
-    private offsetBaseY: number = 0
+    private state: SelectorState = { type: 'idle' }
 
     private readonly pen: Pen = {
         r: 0,
@@ -30,24 +33,18 @@ export class SelectorTool extends BasicTool {
     }
 
     protected _render(ctx: OffscreenCanvasRenderingContext2D): void {
-        if (this.stroke) {
-            // 描画待ちのpointを取得
-            if (this.stroke.waitRenderPoints.length === 0) {
-                return
-            }
-
-            // 描画完了際終点と描画待ちの最初の点を繋ぐ
-            this.__renderStroke(ctx, this.stroke)
-
-            // 描画待ちのpointを描画後バッファに追加
-            this.stroke.points.push(...this.stroke.waitRenderPoints)
-            this.stroke.waitRenderPoints.splice(0)
-        }
-
-        if (this.selection) {
-            ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
-
-            const { left, right, top, bottom } = this.selection.selectedBBox
+        if (this.state.type === 'drawing') {
+            const { stroke } = this.state
+            if (stroke.points.length === 0) return
+            let prev = stroke.points[0]
+            renderJoint(ctx, prev, stroke.pen)
+            stroke.points.slice(1).forEach(current => {
+                renderSegment(ctx, prev, current, stroke.pen)
+                renderJoint(ctx, current, stroke.pen)
+                prev = current
+            })
+        } else if (this.state.type === 'selected' || this.state.type === 'dragging') {
+            const { left, right, top, bottom } = this.state.selection.selectedBBox
             ctx.strokeStyle = 'rgba(0, 0, 255, 0.5)'
             ctx.lineWidth = 1
             ctx.setLineDash([5, 5])
@@ -57,77 +54,75 @@ export class SelectorTool extends BasicTool {
     }
 
     protected _onPointerDown(rawPoint: InputPoint): void {
-        if(this.selection) {
-            // rawPointがselection.bboxに含まれているか
-            const contain = (this.selection.selectedBBox.left <= rawPoint.x) &&
-            (this.selection.selectedBBox.right >= rawPoint.x) &&
-            (this.selection.selectedBBox.top <= rawPoint.y) &&
-            (this.selection.selectedBBox.bottom >= rawPoint.y)
+        if (this.state.type === 'selected') {
+            const { selection } = this.state
+            const contain = (selection.selectedBBox.left <= rawPoint.x) &&
+                (selection.selectedBBox.right >= rawPoint.x) &&
+                (selection.selectedBBox.top <= rawPoint.y) &&
+                (selection.selectedBBox.bottom >= rawPoint.y)
 
-            if(contain) {
-                this.offsetBaseX = rawPoint.x
-                this.offsetBaseY = rawPoint.y
+            if (contain) {
+                this.state = { type: 'dragging', selection, origin: { x: rawPoint.x, y: rawPoint.y } }
                 return
             }
         }
 
-        this.selection = null
-        this.stroke = {
-            pen: this.pen,
-            points: [],
-            needRender: true,
-            waitCalcPoints: [],
-            waitRenderPoints: [],
-            bbox: { left: rawPoint.x, right: rawPoint.x, top: rawPoint.y, bottom: rawPoint.y }
+        this.state = {
+            type: 'drawing',
+            stroke: {
+                pen: this.pen,
+                points: [],
+                needRender: true,
+                waitCalcPoints: [],
+                bbox: { left: rawPoint.x, right: rawPoint.x, top: rawPoint.y, bottom: rawPoint.y }
+            }
         }
-
         this._addPoint(rawPoint)
     }
+
     protected _onPointerMove(rawPoint: InputPoint, isPointerDown: boolean): void {
-        if(!isPointerDown) return
+        if (!isPointerDown) return
 
-        if(this.selection) {
-            const dx = rawPoint.x - this.offsetBaseX
-            const dy = rawPoint.y - this.offsetBaseY
-            this.offsetBaseY = rawPoint.y
-            this.offsetBaseX = rawPoint.x
-            this.selection.selectedStrokes = this.selection.selectedStrokes.map(stroke => {
-                const offset = stroke.offset ?? {
-                    x: 0,
-                    y: 0
-                }
+        if (this.state.type === 'dragging') {
+            const dx = rawPoint.x - this.state.origin.x
+            const dy = rawPoint.y - this.state.origin.y
+            this.state.origin = { x: rawPoint.x, y: rawPoint.y }
 
-                offset.x += dx
-                offset.y += dy
-
+            const { selection } = this.state
+            selection.selectedStrokes = selection.selectedStrokes.map(stroke => {
+                const offset = stroke.offset ?? { x: 0, y: 0 }
                 return {
                     ...stroke,
-                    offset
+                    offset: { x: offset.x + dx, y: offset.y + dy }
                 }
             })
-            this.selection.selectedBBox.top += dy
-            this.selection.selectedBBox.bottom += dy
-            this.selection.selectedBBox.left += dx
-            this.selection.selectedBBox.right += dx
-            this.model.updateConfirmedStrokes([...this.selection.unselectedStrokes, ...this.selection.selectedStrokes])
+            selection.selectedBBox.top += dy
+            selection.selectedBBox.bottom += dy
+            selection.selectedBBox.left += dx
+            selection.selectedBBox.right += dx
+            this.model.updateConfirmedStrokes([...selection.unselectedStrokes, ...selection.selectedStrokes])
             return
         }
 
-        this._addPoint(rawPoint)
+        if (this.state.type === 'drawing') {
+            this._addPoint(rawPoint)
+        }
     }
+
     protected _onPointerUp(rawPoint: InputPoint): void {
-        if(this.selection) {
+        if (this.state.type === 'dragging') {
+            this.state = { type: 'selected', selection: this.state.selection }
             return
         }
 
+        if (this.state.type !== 'drawing') return
+
         this._addPoint(rawPoint)
 
-        if (!this.stroke) {
-            throw new Error("stroke is null")
-        }
-        const pendingPoints = this.stroke.waitCalcPoints
+        const { stroke } = this.state
+        const pendingPoints = stroke.waitCalcPoints
         // 最後は p, INTERPORATE_POINTS, p, pとなってるはず
-        const p0 = this.stroke.points[this.stroke.points.length - 1 - this.splinePoints]
+        const p0 = stroke.points[stroke.points.length - 1 - this.splinePoints]
         const p1 = pendingPoints[0]
         const p2 = pendingPoints[1]
         const p3 = pendingPoints[1]
@@ -142,24 +137,25 @@ export class SelectorTool extends BasicTool {
                 tags: ['spline'],
             }
         })
-        this.stroke.waitRenderPoints.push(p1, ...points, p2)
-        this.stroke.waitCalcPoints.splice(0)
+        stroke.points.push(p1, ...points, p2)
+        stroke.waitCalcPoints.splice(0)
 
         // 選択範囲を計算
-        this.selection = this.getSelection(this.model.strokes, this.stroke)
-        this.stroke = null
+        const selection = this.getSelection(this.model.strokes, stroke)
+        this.state = { type: 'selected', selection }
     }
 
     protected _addPoint = (rawPoint: InputPoint): void => {
-        if (!this.stroke) {
-            throw new Error("stroke is null")
+        if (this.state.type !== 'drawing') {
+            throw new Error("state is not drawing")
         }
-        const pendingPoints = this.stroke.waitCalcPoints
+        const { stroke } = this.state
+        const pendingPoints = stroke.waitCalcPoints
 
-        if (this.stroke.points.length === 0) {
+        if (stroke.points.length === 0) {
             if (pendingPoints.length < 2) {
                 // stroke1点目、2点目の時はバッファに追加して終わり
-                this.stroke.waitCalcPoints.push(rawPoint)
+                stroke.waitCalcPoints.push(rawPoint)
                 return
             } else if (pendingPoints.length === 2) {
                 // 3点目の場合は、0, 0, 1, currentでspline補間を行い、補間点を取得する
@@ -167,7 +163,6 @@ export class SelectorTool extends BasicTool {
                 const p1 = p0
                 const p2 = pendingPoints[0]
                 const p3 = rawPoint
-
 
                 const dp = (p2.pressure - p1.pressure) / this.splinePoints
                 const ps = this.spline.interpolate(p0, p1, p2, p3, 0.5, this.splinePoints)
@@ -180,13 +175,13 @@ export class SelectorTool extends BasicTool {
                     }
                 })
 
-                this.stroke.waitRenderPoints.push(p1, ...points)
-                this.stroke.waitCalcPoints.push(rawPoint)
+                stroke.points.push(p1, ...points)
+                stroke.waitCalcPoints.push(rawPoint)
                 return
             }
         }
 
-        const p0 = this.stroke.points[this.stroke.points.length - 1 - this.splinePoints]
+        const p0 = stroke.points[stroke.points.length - 1 - this.splinePoints]
         const p1 = pendingPoints.shift()!
         const p2 = pendingPoints[0]
         const p3 = rawPoint
@@ -202,37 +197,10 @@ export class SelectorTool extends BasicTool {
             }
         })
 
-        this.stroke.waitRenderPoints.push(p1, ...points)
-        this.stroke.waitCalcPoints.push(rawPoint)
+        stroke.points.push(p1, ...points)
+        stroke.waitCalcPoints.push(rawPoint)
     }
 
-
-    /**
-     * ストロークを描画します
-     * @param ctx 
-     * @param stroke 
-     */
-    __renderStroke = (ctx: OffscreenCanvasRenderingContext2D, stroke: CurrentStroke) => {
-        if (stroke.points.length > 0) {
-            // 描画済みの最後の点と、未描画の最初の点とを繋ぐ
-            renderSegment(
-                ctx,
-                stroke.points[stroke.points.length - 1],
-                stroke.waitRenderPoints[0],
-                stroke.pen
-            )
-            renderJoint(ctx, stroke.waitRenderPoints[0], stroke.pen)
-        }
-
-        // strokeの描画
-        renderJoint(ctx, stroke.waitRenderPoints[0], stroke.pen)
-        let prev = stroke.waitRenderPoints[0]
-        stroke.waitRenderPoints.slice(1).forEach((current) => {
-            renderSegment(ctx, prev, current, stroke.pen)
-            renderJoint(ctx, current, stroke.pen)
-            prev = current
-        })
-    }
 
     /**
      * 選択範囲と交差するストロークを返す

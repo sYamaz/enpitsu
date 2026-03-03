@@ -94,12 +94,7 @@ export const useEnpitsu = (
 
     return {
         useTool: toolLayer.useTool,
-        // panZoom(dx:number, dy:number, dz:number) {
-        //     transformer.zoomRatio += dz
-        //     transformer.dx += dx
-        //     transformer.dy += dy
-
-        //     combineLayer.requestRender()
-        // }
+        undo: () => { store.undo(); combineLayer.requestRender() },
+        redo: () => { store.redo(); combineLayer.requestRender() },
     }
 }

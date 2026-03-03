@@ -25,13 +25,13 @@
                     <Icon name="mdi:cursor-default" style="color: black;"></Icon>
                 </ToolBtn>
 
-                <!-- <ToolBtn @action="zoomIn">
-                    <Icon name="mdi:magnify-plus" style="color: black;"></Icon>
+                <ToolBtn @action="undoAction">
+                    <Icon name="mdi:undo" style="color: black;"></Icon>
                 </ToolBtn>
 
-                <ToolBtn @action="zoomOut">
-                    <Icon name="mdi:magnify-minus" style="color: black;"></Icon>
-                </ToolBtn> -->
+                <ToolBtn @action="redoAction">
+                    <Icon name="mdi:redo" style="color: black;"></Icon>
+                </ToolBtn>
             </div>
         </div>
 
@@ -76,6 +76,14 @@ onMounted(() => {
 
     enpitsu = useEnpitsu(currentCanvas, confirmedCanvas)
 
+    window.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+            e.preventDefault()
+            if (e.shiftKey) enpitsu?.redo()
+            else enpitsu?.undo()
+        }
+    })
+
     // // ctx.globalCompositeOperation = 'multiply'
     // ctx.globalCompositeOperation = 'source-over'
 
@@ -113,6 +121,14 @@ const setEraser = () => {
 
 const setSelector = () => {
     enpitsu?.useTool('selector')
+}
+
+const undoAction = () => {
+    enpitsu?.undo()
+}
+
+const redoAction = () => {
+    enpitsu?.redo()
 }
 
 

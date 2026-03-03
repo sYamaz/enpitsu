@@ -14,7 +14,6 @@ export class EraserTool extends BasicTool {
     }
 
     protected _render(ctx: OffscreenCanvasRenderingContext2D): void {
-        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
         if (!this.cursor) {
             return
         }

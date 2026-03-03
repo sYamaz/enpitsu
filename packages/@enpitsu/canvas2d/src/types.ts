@@ -50,6 +50,8 @@ export interface ToolConfigureStructure {
 
 export interface Enpitsu {
     useTool<k extends keyof ToolConfigureStructure>(type: k): void
+    undo(): void
+    redo(): void
 }
 
 //--------------------
@@ -84,7 +86,6 @@ export interface Stroke {
 
 export interface CurrentStroke extends Stroke {
     waitCalcPoints: InputPoint[]
-    waitRenderPoints: InputPoint[]
 }
 
 //--------------------
