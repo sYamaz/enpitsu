@@ -18,13 +18,12 @@ const getNormal = (pi: Point, pj: Point): { x: number, y: number } => {
 }
 
 const colorStyleFromPen = (pressure: number, pen: Pen) => {
-    const ratio = pen.minColorRatio + pressure * (pen.maxColorRatio - pen.minColorRatio)
+    const r = pen.r + (1 - pressure) * ((255 - pen.r) * (1-pen.minColorRatio))
+    const g = pen.g + (1 - pressure) * ((255 - pen.g) * (1-pen.minColorRatio))
+    const b = pen.b + (1 - pressure) * ((255 - pen.b) * (1-pen.minColorRatio))
+    const a = 1
 
-    const r = pen.r * ratio
-    const g = pen.g * ratio
-    const b = pen.b * ratio
-
-    return `rgba(${r},${g},${b},1)`
+    return `rgba(${r},${g},${b},${a})`
 }
 
 const radiusFromPen = (pressure: number, pen: Pen) => {

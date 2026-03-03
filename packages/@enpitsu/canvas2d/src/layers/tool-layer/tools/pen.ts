@@ -21,7 +21,7 @@ export class PenTool extends BasicTool {
         maxThickness: 3,
         minThickness: 0.5,
         maxColorRatio: 1,
-        minColorRatio: 0.5
+        minColorRatio: 0.95
     }
 
     constructor(transformer: ViewportTransformer, store: StrokeStore) {
