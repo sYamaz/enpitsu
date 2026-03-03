@@ -11,6 +11,16 @@ export const useEnpitsu = (
     const transformer = new ViewportTransformer(1, dpr)
     const store = new StrokeStore()
 
+    // キャンバスの論理サイズ（transferControlToOffscreen 前に取得）
+    const canvasW = toolCanvas.width / dpr
+    const canvasH = toolCanvas.height / dpr
+
+    const clampPan = () => {
+        const z = transformer.zoomRatio
+        transformer.dx = Math.max(canvasW * (1 - z), Math.min(0, transformer.dx))
+        transformer.dy = Math.max(canvasH * (1 - z), Math.min(0, transformer.dy))
+    }
+
     const toolLayer = useToolLayer(toolCanvas, transformer, store)
     const combineLayer = useCombinedLayer(combinedCanvas, transformer, store)
     
@@ -88,6 +98,7 @@ export const useEnpitsu = (
             transformer.dy -= ev.deltaY
         }
 
+        clampPan()
         store.needClear = true
         combineLayer.requestRender()
     }, { passive: false })
