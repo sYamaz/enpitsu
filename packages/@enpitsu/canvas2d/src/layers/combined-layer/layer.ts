@@ -1,6 +1,6 @@
-import { useCombinedLayerRenderer } from "./renderer";
-import { StrokeStore } from "store";
-import { ViewportTransformer } from "../../transformer";
+import { useCombinedLayerRenderer } from './renderer'
+import { StrokeStore } from 'store'
+import { ViewportTransformer } from '../../transformer'
 
 export const useCombinedLayer = (
     canvas: HTMLCanvasElement,

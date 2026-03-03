@@ -1,9 +1,8 @@
-import { Simple2DCatmullRomSpline } from "@syamaz/catmull-rom-spline";
-import { renderJoint, renderSegment } from "../../../renderer/segment";
-import { StrokeStore } from "store/stroke-store";
-import { BasicTool } from "./_basic";
-import { ViewportTransformer } from "transformer/viewport-transformer";
-import { CurrentStroke, InputPoint, Pen, Stroke, Selection, Point } from "types";
+import { Simple2DCatmullRomSpline } from '@syamaz/catmull-rom-spline'
+import { StrokeStore } from 'store/stroke-store'
+import { BasicTool } from './_basic'
+import { ViewportTransformer } from 'transformer/viewport-transformer'
+import { CurrentStroke, InputPoint, Pen, Stroke, Selection, Point, ToolRenderState } from 'types'
 
 type SelectorState =
     | { type: 'idle' }
@@ -32,25 +31,15 @@ export class SelectorTool extends BasicTool {
         this.model = model
     }
 
-    protected _render(ctx: OffscreenCanvasRenderingContext2D): void {
+    getRenderState(): ToolRenderState {
         if (this.state.type === 'drawing') {
-            const { stroke } = this.state
-            if (stroke.points.length === 0) return
-            let prev = stroke.points[0]
-            renderJoint(ctx, prev, stroke.pen)
-            stroke.points.slice(1).forEach(current => {
-                renderSegment(ctx, prev, current, stroke.pen)
-                renderJoint(ctx, current, stroke.pen)
-                prev = current
-            })
-        } else if (this.state.type === 'selected' || this.state.type === 'dragging') {
-            const { left, right, top, bottom } = this.state.selection.selectedBBox
-            ctx.strokeStyle = 'rgba(0, 0, 255, 0.5)'
-            ctx.lineWidth = 1
-            ctx.setLineDash([5, 5])
-            ctx.strokeRect(left, top, right - left, bottom - top)
-            ctx.setLineDash([])
+            return { tool: 'selector_drawing', points: this.state.stroke.points, pen: this.pen }
         }
+        if (this.state.type === 'selected' || this.state.type === 'dragging') {
+            const { left, right, top, bottom } = this.state.selection.selectedBBox
+            return { tool: 'selector_selected', bbox: { left, right, top, bottom } }
+        }
+        return { tool: 'idle' }
     }
 
     protected _onPointerDown(rawPoint: InputPoint): void {

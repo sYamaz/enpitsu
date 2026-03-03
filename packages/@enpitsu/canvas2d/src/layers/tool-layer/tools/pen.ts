@@ -1,9 +1,8 @@
-import { Simple2DCatmullRomSpline } from "@syamaz/catmull-rom-spline";
-import { renderJoint, renderSegment } from "../../../renderer";
-import { StrokeStore } from "store/stroke-store";
-import { BasicTool } from "./_basic";
-import { ViewportTransformer } from "transformer/viewport-transformer";
-import { CurrentStroke, InputPoint, Pen } from "types";
+import { Simple2DCatmullRomSpline } from '@syamaz/catmull-rom-spline'
+import { StrokeStore } from 'store/stroke-store'
+import { BasicTool } from './_basic'
+import { ViewportTransformer } from 'transformer/viewport-transformer'
+import { CurrentStroke, InputPoint, Pen, ToolRenderState } from 'types'
 
 type PenState =
     | { type: 'idle' }
@@ -30,17 +29,9 @@ export class PenTool extends BasicTool {
         this.store = store
     }
 
-    protected _render = (ctx: OffscreenCanvasRenderingContext2D): void => {
-        if (this.state.type !== 'drawing') return
-        const { stroke } = this.state
-        if (stroke.points.length === 0) return
-        let prev = stroke.points[0]
-        renderJoint(ctx, prev, stroke.pen)
-        stroke.points.slice(1).forEach(current => {
-            renderSegment(ctx, prev, current, stroke.pen)
-            renderJoint(ctx, current, stroke.pen)
-            prev = current
-        })
+    getRenderState(): ToolRenderState {
+        if (this.state.type !== 'drawing') return { tool: 'idle' }
+        return { tool: 'pen', points: this.state.stroke.points, pen: this.pen }
     }
 
     protected _onPointerDown = (rawPoint: InputPoint): void => {
@@ -66,11 +57,10 @@ export class PenTool extends BasicTool {
         this._addPoint(rawPoint)
 
         if (this.state.type !== 'drawing') {
-            throw new Error("state is not drawing")
+            throw new Error('state is not drawing')
         }
         const { stroke } = this.state
         const pendingPoints = stroke.waitCalcPoints
-        // 最後は p, INTERPORATE_POINTS, p, pとなってるはず
         const p0 = stroke.points[stroke.points.length - 1 - this.splinePoints]
         const p1 = pendingPoints[0]
         const p2 = pendingPoints[1]
@@ -94,18 +84,16 @@ export class PenTool extends BasicTool {
 
     protected _addPoint = (rawPoint: InputPoint): void => {
         if (this.state.type !== 'drawing') {
-            throw new Error("state is not drawing")
+            throw new Error('state is not drawing')
         }
         const { stroke } = this.state
         const pendingPoints = stroke.waitCalcPoints
 
         if (stroke.points.length === 0) {
             if (pendingPoints.length < 2) {
-                // stroke1点目、2点目の時はバッファに追加して終わり
                 stroke.waitCalcPoints.push(rawPoint)
                 return
             } else if (pendingPoints.length === 2) {
-                // 3点目の場合は、0, 0, 1, currentでspline補間を行い、補間点を取得する
                 const p0 = pendingPoints.shift()!
                 const p1 = p0
                 const p2 = pendingPoints[0]
@@ -118,7 +106,7 @@ export class PenTool extends BasicTool {
                         x: p.x,
                         y: p.y,
                         pressure: p1.pressure + dp * i,
-                        tags: ["spline"],
+                        tags: ['spline'],
                     }
                 })
 
@@ -140,7 +128,7 @@ export class PenTool extends BasicTool {
                 x: p.x,
                 y: p.y,
                 pressure: p1.pressure + dp * i,
-                tags: ["spline"],
+                tags: ['spline'],
             }
         })
 

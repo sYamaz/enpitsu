@@ -1,15 +1,15 @@
-import { useToolLayerRenderer } from "./renderer";
-import { EraserTool, PenTool, RemoverTool, SelectorTool } from "./tools";
-import { StrokeStore } from "../../store";
-import { ViewportTransformer } from "../../transformer";
-import { InputPoint, Pen, Tool, ToolConfigureStructure } from "types";
+import { useToolLayerRenderer } from './renderer'
+import { EraserTool, PenTool, RemoverTool, SelectorTool } from './tools'
+import { StrokeStore } from '../../store'
+import { ViewportTransformer } from '../../transformer'
+import { InputPoint, Tool, ToolConfigureStructure } from 'types'
 
 export const useToolLayer = (
-    canvas: HTMLCanvasElement, 
+    canvas: HTMLCanvasElement,
     transformer: ViewportTransformer,
     store: StrokeStore
 ) => {
-    const renderer = useToolLayerRenderer(canvas)
+    const renderer = useToolLayerRenderer(canvas, transformer)
 
     const toolMap = new Map<keyof ToolConfigureStructure, Tool>()
     toolMap.set('pen', new PenTool(transformer, store))
@@ -18,7 +18,6 @@ export const useToolLayer = (
     toolMap.set('selector', new SelectorTool(transformer, store))
 
     let tool = toolMap.get('pen')!
-    let rendering = false
 
     renderer.setTool(tool)
 
@@ -33,19 +32,13 @@ export const useToolLayer = (
             renderer.render()
         },
         onPointerMove: (p: InputPoint) => {
-            if (!rendering) {
-                rendering = true
-
-                tool?.onPointerMove(p)
-                renderer.requestRender(() => {
-                    rendering = false
-                })
-            }
+            tool?.onPointerMove(p)
+            renderer.requestRender()
         },
         onPointerUp: (p: InputPoint) => {
             tool?.onPointerUp(p)
             renderer.clear()
-            renderer.requestRender()
-        }
+        },
+        destroy: renderer.destroy
     }
 }

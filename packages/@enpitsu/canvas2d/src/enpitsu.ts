@@ -107,5 +107,6 @@ export const useEnpitsu = (
         useTool: toolLayer.useTool,
         undo: () => { store.undo(); combineLayer.requestRender() },
         redo: () => { store.redo(); combineLayer.requestRender() },
+        destroy: () => { toolLayer.destroy(); combineLayer.destroy() }
     }
 }

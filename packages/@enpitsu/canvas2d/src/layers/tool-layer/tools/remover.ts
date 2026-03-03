@@ -1,7 +1,7 @@
-import { StrokeStore } from "store/stroke-store";
-import { BasicTool } from "./_basic";
-import { ViewportTransformer } from "transformer/viewport-transformer";
-import { InputPoint, Point } from "types";
+import { StrokeStore } from 'store/stroke-store'
+import { BasicTool } from './_basic'
+import { ViewportTransformer } from 'transformer/viewport-transformer'
+import { InputPoint, Point, ToolRenderState } from 'types'
 
 export class RemoverTool extends BasicTool {
 
@@ -14,15 +14,8 @@ export class RemoverTool extends BasicTool {
         this.model = model
     }
 
-    protected _render = (ctx: OffscreenCanvasRenderingContext2D): void => {
-        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
-        if (!this.cursor) {
-            return
-        }
-        const path = new Path2D()
-        path.arc(this.cursor.x, this.cursor.y, this.size, 0, Math.PI * 2)
-        ctx.strokeStyle = "rgba(0, 0, 255, 0.5)"
-        ctx.stroke(path)
+    getRenderState(): ToolRenderState {
+        return { tool: 'remover', cursor: this.cursor, size: this.size }
     }
 
     protected _onPointerDown = (rawPoint: InputPoint): void => {

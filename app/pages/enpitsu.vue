@@ -56,6 +56,10 @@ const debug = ref('')
 
 let enpitsu: Enpitsu | null = null
 
+onUnmounted(() => {
+    enpitsu?.destroy()
+})
+
 onMounted(() => {
     const DPR = window.devicePixelRatio || 1
 
