@@ -50,6 +50,9 @@ export interface ToolConfigureStructure {
 
 export interface Enpitsu {
     useTool<k extends keyof ToolConfigureStructure>(type: k): void
+    undo(): void
+    redo(): void
+    destroy(): void
 }
 
 //--------------------
@@ -84,7 +87,6 @@ export interface Stroke {
 
 export interface CurrentStroke extends Stroke {
     waitCalcPoints: InputPoint[]
-    waitRenderPoints: InputPoint[]
 }
 
 //--------------------
@@ -124,12 +126,19 @@ export interface Pen {
     b: number
 }
 
+export type ToolRenderState =
+    | { tool: 'idle' }
+    | { tool: 'pen'; points: InputPoint[]; pen: Pen }
+    | { tool: 'eraser' | 'remover'; cursor: InputPoint | null; size: number }
+    | { tool: 'selector_drawing'; points: InputPoint[]; pen: Pen }
+    | { tool: 'selector_selected'; bbox: { left: number; right: number; top: number; bottom: number } }
+
 export interface Tool extends ToolRenderer, ToolController {
 
 }
 
 export interface ToolRenderer {
-    render: (ctx: OffscreenCanvasRenderingContext2D) => void
+    getRenderState: () => ToolRenderState
 }
 
 export interface ToolController {
