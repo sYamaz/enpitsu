@@ -69,6 +69,29 @@ export const useEnpitsu = (
         }
     })
 
+    toolCanvas.addEventListener('wheel', (ev) => {
+        ev.preventDefault()
+
+        if (ev.ctrlKey) {
+            // ピンチイン・アウト (iOS pinch / Ctrl+scroll)
+            const scale = 1 - ev.deltaY * 0.003
+            const newZoom = Math.max(0.1, transformer.zoomRatio * scale)
+            const actualScale = newZoom / transformer.zoomRatio
+
+            // ポインター位置を中心にズーム
+            transformer.dx = ev.offsetX - (ev.offsetX - transformer.dx) * actualScale
+            transformer.dy = ev.offsetY - (ev.offsetY - transformer.dy) * actualScale
+            transformer.zoomRatio = newZoom
+        } else {
+            // パン (2本指スワイプ)
+            transformer.dx -= ev.deltaX
+            transformer.dy -= ev.deltaY
+        }
+
+        store.needClear = true
+        combineLayer.requestRender()
+    }, { passive: false })
+
     return {
         useTool: toolLayer.useTool,
         // panZoom(dx:number, dy:number, dz:number) {
