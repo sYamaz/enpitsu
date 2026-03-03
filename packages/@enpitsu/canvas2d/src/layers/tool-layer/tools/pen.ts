@@ -18,8 +18,8 @@ export class PenTool extends BasicTool {
         r: 50,
         g: 50,
         b: 50,
-        maxThickness: 0.5,
-        minThickness: 4,
+        maxThickness: 3,
+        minThickness: 0.5,
         maxColorRatio: 1,
         minColorRatio: 0.5
     }
@@ -83,6 +83,7 @@ export class PenTool extends BasicTool {
     }
 
     protected _addPoint = (rawPoint: InputPoint): void => {
+        console.log({pressure: rawPoint.pressure})
         if (this.state.type !== 'drawing') {
             throw new Error('state is not drawing')
         }
