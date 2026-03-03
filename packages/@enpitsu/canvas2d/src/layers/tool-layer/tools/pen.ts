@@ -83,7 +83,6 @@ export class PenTool extends BasicTool {
     }
 
     protected _addPoint = (rawPoint: InputPoint): void => {
-        console.log({pressure: rawPoint.pressure})
         if (this.state.type !== 'drawing') {
             throw new Error('state is not drawing')
         }
