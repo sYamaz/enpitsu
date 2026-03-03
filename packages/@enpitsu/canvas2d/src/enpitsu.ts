@@ -23,19 +23,50 @@ export const useEnpitsu = (
         }
     }
 
+    let penActiveCount = 0
+    let lastPenActivityTime = 0
+    const PALM_REJECTION_WINDOW_MS = 500
+
+    const shouldRejectTouchEvent = (ev: PointerEvent): boolean => {
+        if (ev.pointerType !== 'touch') return false
+        if (penActiveCount > 0) return true
+        return Date.now() - lastPenActivityTime < PALM_REJECTION_WINDOW_MS
+    }
+
     toolCanvas.addEventListener('pointerdown', (ev) => {
+        if (ev.pointerType === 'pen') {
+            penActiveCount++
+            lastPenActivityTime = Date.now()
+        }
+        if (shouldRejectTouchEvent(ev)) return
         toolLayer.onPointerDown(convertEvent(ev))
         combineLayer.requestRender()
     })
 
     toolCanvas.addEventListener('pointermove', ev => {
+        if (ev.pointerType === 'pen') lastPenActivityTime = Date.now()
+        if (shouldRejectTouchEvent(ev)) return
         toolLayer.onPointerMove(convertEvent(ev))
         combineLayer.requestRender()
     })
 
     toolCanvas.addEventListener('pointerup', ev => {
+        if (ev.pointerType === 'pen') {
+            penActiveCount = Math.max(0, penActiveCount - 1)
+            lastPenActivityTime = Date.now()
+        }
+        if (shouldRejectTouchEvent(ev)) return
         toolLayer.onPointerUp(convertEvent(ev))
         combineLayer.requestRender()
+    })
+
+    toolCanvas.addEventListener('pointercancel', ev => {
+        if (ev.pointerType === 'pen') {
+            penActiveCount = Math.max(0, penActiveCount - 1)
+            lastPenActivityTime = Date.now()
+            toolLayer.onPointerUp(convertEvent(ev))
+            combineLayer.requestRender()
+        }
     })
 
     return {
