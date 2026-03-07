@@ -42,6 +42,10 @@ export class SelectorTool extends BasicTool {
         return { tool: 'idle' }
     }
 
+    protected _onCancel(): void {
+        this.state = { type: 'idle' }
+    }
+
     protected _onPointerDown(rawPoint: InputPoint): void {
         if (this.state.type === 'selected') {
             const { selection } = this.state

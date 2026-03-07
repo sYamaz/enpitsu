@@ -47,4 +47,11 @@ export abstract class BasicTool implements Tool {
     }
 
     protected abstract _onPointerUp(rawPoint: InputPoint): void
+
+    cancel = (): void => {
+        this.isDown = false
+        this._onCancel()
+    }
+
+    protected abstract _onCancel(): void
 }

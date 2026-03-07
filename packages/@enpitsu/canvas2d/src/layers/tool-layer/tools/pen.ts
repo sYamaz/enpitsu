@@ -53,6 +53,10 @@ export class PenTool extends BasicTool {
         this._addPoint(rawPoint)
     }
 
+    protected _onCancel = (): void => {
+        this.state = { type: 'idle' }
+    }
+
     protected _onPointerUp = (rawPoint: InputPoint): void => {
         this._addPoint(rawPoint)
 

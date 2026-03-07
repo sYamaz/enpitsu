@@ -145,4 +145,5 @@ export interface ToolController {
     onPointerDown: (viewportPoint: InputPoint) => void
     onPointerMove: (viewportPoint: InputPoint) => void
     onPointerUp: (viewportPoint: InputPoint) => void
+    cancel: () => void
 }

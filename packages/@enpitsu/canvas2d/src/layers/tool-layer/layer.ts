@@ -39,6 +39,10 @@ export const useToolLayer = (
             tool?.onPointerUp(p)
             renderer.clear()
         },
+        cancel: () => {
+            tool?.cancel()
+            renderer.clear()
+        },
         destroy: renderer.destroy
     }
 }

@@ -43,12 +43,28 @@ export const useEnpitsu = (
         return Date.now() - lastPenActivityTime < PALM_REJECTION_WINDOW_MS
     }
 
+    // マルチタッチ（2本指ジェスチャー）管理
+    const activeTouchIds = new Set<number>()
+    let isGestureMode = false
+
     toolCanvas.addEventListener('pointerdown', (ev) => {
         if (ev.pointerType === 'pen') {
             penActiveCount++
             lastPenActivityTime = Date.now()
         }
         if (shouldRejectTouchEvent(ev)) return
+
+        if (ev.pointerType === 'touch') {
+            activeTouchIds.add(ev.pointerId)
+            if (activeTouchIds.size >= 2 && !isGestureMode) {
+                // 2本指を検出: 進行中のストロークをキャンセルしてジェスチャーモードへ
+                isGestureMode = true
+                toolLayer.cancel()
+                combineLayer.requestRender()
+            }
+            if (isGestureMode) return
+        }
+
         toolLayer.onPointerDown(convertEvent(ev))
         combineLayer.requestRender()
     })
@@ -56,6 +72,7 @@ export const useEnpitsu = (
     toolCanvas.addEventListener('pointermove', ev => {
         if (ev.pointerType === 'pen') lastPenActivityTime = Date.now()
         if (shouldRejectTouchEvent(ev)) return
+        if (ev.pointerType === 'touch' && isGestureMode) return
         toolLayer.onPointerMove(convertEvent(ev))
         combineLayer.requestRender()
     })
@@ -66,11 +83,24 @@ export const useEnpitsu = (
             lastPenActivityTime = Date.now()
         }
         if (shouldRejectTouchEvent(ev)) return
+
+        if (ev.pointerType === 'touch') {
+            activeTouchIds.delete(ev.pointerId)
+            const wasGesture = isGestureMode
+            if (activeTouchIds.size === 0) isGestureMode = false
+            if (wasGesture) return
+        }
+
         toolLayer.onPointerUp(convertEvent(ev))
         combineLayer.requestRender()
     })
 
     toolCanvas.addEventListener('pointercancel', ev => {
+        if (ev.pointerType === 'touch') {
+            activeTouchIds.delete(ev.pointerId)
+            if (activeTouchIds.size === 0) isGestureMode = false
+            return
+        }
         if (ev.pointerType === 'pen') {
             penActiveCount = Math.max(0, penActiveCount - 1)
             lastPenActivityTime = Date.now()

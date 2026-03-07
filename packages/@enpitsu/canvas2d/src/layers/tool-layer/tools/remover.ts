@@ -18,6 +18,10 @@ export class RemoverTool extends BasicTool {
         return { tool: 'remover', cursor: this.cursor, size: this.size }
     }
 
+    protected _onCancel = (): void => {
+        this.cursor = null
+    }
+
     protected _onPointerDown = (rawPoint: InputPoint): void => {
         this.cursor = rawPoint
     }
