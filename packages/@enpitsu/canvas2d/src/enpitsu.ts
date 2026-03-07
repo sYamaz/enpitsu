@@ -45,6 +45,7 @@ export const useEnpitsu = (
 
     // 2本指ピンチ管理
     const activePointers = new Map<number, { x: number; y: number }>()
+    const drawingPointers = new Set<number>()  // onPointerDown を通過したタッチ
     let isPinching = false
     let lastPinchDist = 0
     let lastPinchMid = { x: 0, y: 0 }
@@ -68,13 +69,15 @@ export const useEnpitsu = (
                 const { dist, mid } = getPinchInfo()
                 lastPinchDist = dist
                 lastPinchMid = mid
-                // 進行中のストロークをキャンセル
-                toolLayer.onPointerUp(convertEvent(ev))
+                // 進行中のストロークをキャンセル（コミットせず破棄）
+                toolLayer.cancelStroke()
+                drawingPointers.clear()
                 return
             }
         }
         if (shouldRejectTouchEvent(ev)) return
         toolLayer.onPointerDown(convertEvent(ev))
+        if (ev.pointerType === 'touch') drawingPointers.add(ev.pointerId)
         combineLayer.requestRender()
     })
 
@@ -116,6 +119,8 @@ export const useEnpitsu = (
         }
         if (shouldRejectTouchEvent(ev)) return
         if (isPinching) return
+        if (ev.pointerType === 'touch' && !drawingPointers.has(ev.pointerId)) return
+        drawingPointers.delete(ev.pointerId)
         toolLayer.onPointerUp(convertEvent(ev))
         combineLayer.requestRender()
     })
@@ -129,6 +134,7 @@ export const useEnpitsu = (
         }
         if (ev.pointerType === 'touch') {
             activePointers.delete(ev.pointerId)
+            drawingPointers.delete(ev.pointerId)
             if (activePointers.size < 2) isPinching = false
         }
     })
