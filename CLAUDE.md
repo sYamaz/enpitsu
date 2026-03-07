@@ -135,6 +135,10 @@ PointerEvent → useEnpitsu → toolLayer.onPointer*
 5. **Document Results**: Add review section to `tasks/todo.md`
 6. **Capture Lessons**: Update `tasks/lessons.md` after corrections
 
+## GitHub Operations
+
+- Use the `gh` CLI for all GitHub operations (PRs, issues, releases, etc.)
+
 ## Core Principles
 
 - **Simplicity First**: Make every change as simple as possible. Impact minimal code.
