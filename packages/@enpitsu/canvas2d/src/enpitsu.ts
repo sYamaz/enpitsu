@@ -97,8 +97,13 @@ export const useEnpitsu = (
 
     toolCanvas.addEventListener('pointercancel', ev => {
         if (ev.pointerType === 'touch') {
+            const wasDrawing = activeTouchIds.size === 1 && !isGestureMode
             activeTouchIds.delete(ev.pointerId)
             if (activeTouchIds.size === 0) isGestureMode = false
+            if (wasDrawing) {
+                toolLayer.cancel()
+                combineLayer.requestRender()
+            }
             return
         }
         if (ev.pointerType === 'pen') {
