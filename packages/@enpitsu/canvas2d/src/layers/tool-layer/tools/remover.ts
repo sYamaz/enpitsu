@@ -62,6 +62,9 @@ export class RemoverTool extends BasicTool {
         this.cursor = null
     }
 
+    protected _cancel = (): void => {
+        this.cursor = null
+    }
 }
 
 // ストロークの各線分 vs 消しゴム円

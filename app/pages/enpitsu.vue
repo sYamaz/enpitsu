@@ -44,6 +44,8 @@
 </template>
 
 <script setup lang="ts">
+definePageMeta({ ssr: false })
+
 import ToolBtn from '~/components/tool-btn.vue'
 import ToolHeader from '~/components/tool-header.vue';
 import { useEnpitsu, type Enpitsu } from 'canvas2d'

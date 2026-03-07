@@ -17,15 +17,16 @@ export default defineNuxtConfig({
       },
     },
   },
-  // 速記でのイベント落ち回避に必要かと思ったがそうでもなさそう
-  // app: {
-  //   head: {
-  //     meta: [
-  //       {
-  //         name: 'viewport',
-  //         content: 'width=device-width, initial-scale=1.0, user-scalable=no'
-  //       }
-  //     ],
-  //   }
-  // }
+  // - 速記でのイベント落ち回避に必要かと思ったがそうでもなさそう
+  // - それとは別に、pinch-in outのために追加している
+  app: {
+    head: {
+      meta: [
+        {
+          name: 'viewport',
+          content: 'width=device-width, initial-scale=1.0, user-scalable=no'
+        }
+      ],
+    }
+  }
 })

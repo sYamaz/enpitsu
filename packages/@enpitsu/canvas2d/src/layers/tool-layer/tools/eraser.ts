@@ -32,7 +32,11 @@ export class EraserTool extends BasicTool {
     }
     protected _onPointerUp = (rawPoint: InputPoint): void => {
         this.cursor = null
-    }    
+    }
+
+    protected _cancel = (): void => {
+        this.cursor = null
+    }
 }
 
 

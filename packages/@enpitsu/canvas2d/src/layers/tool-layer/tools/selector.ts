@@ -98,6 +98,10 @@ export class SelectorTool extends BasicTool {
         }
     }
 
+    protected _cancel(): void {
+        this.state = { type: 'idle' }
+    }
+
     protected _onPointerUp(rawPoint: InputPoint): void {
         if (this.state.type === 'dragging') {
             const { selection } = this.state
