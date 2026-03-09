@@ -18,6 +18,7 @@ export const useToolLayer = (
     toolMap.set('selector', new SelectorTool(transformer, store))
 
     let tool = toolMap.get('pen')!
+    let lastMoveTimestamp: number | null = null
 
     renderer.setTool(tool)
 
@@ -32,6 +33,8 @@ export const useToolLayer = (
             renderer.render()
         },
         onPointerMove: (p: InputPoint) => {
+            if (p.timestamp !== 0 && p.timestamp === lastMoveTimestamp) return
+            lastMoveTimestamp = p.timestamp
             tool?.onPointerMove(p)
             renderer.requestRender()
         },

@@ -84,7 +84,8 @@ const getSegmentCircleIntersections = (
                 x: p1.x + t * dx,
                 y: p1.y + t * dy,
                 pressure: p1.pressure + t * (p2.pressure - p1.pressure),
-                tags: p1.tags
+                tags: p1.tags,
+                timestamp: 0,
             }
         })
     }

@@ -29,7 +29,8 @@ export const useEnpitsu = (
             pressure: ev.pressure,
             tags: [ev.pointerType],
             x: ev.offsetX,
-            y: ev.offsetY
+            y: ev.offsetY,
+            timestamp: ev.timeStamp
         }
     }
 
@@ -104,6 +105,7 @@ export const useEnpitsu = (
         }
         if (shouldRejectTouchEvent(ev)) return
         if (isPinching) return
+
         toolLayer.onPointerMove(convertEvent(ev))
         combineLayer.requestRender()
     })
