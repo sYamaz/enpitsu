@@ -54,11 +54,23 @@ export const buildStrokeRenderData = (
             dy = pts[i + 1].y - pts[i - 1].y
         }
         const len = Math.sqrt(dx * dx + dy * dy)
-        if (len > 0) {
+        // Use 1e-4 threshold to avoid unstable tangents from nearly-coincident points
+        if (len > 1e-4) {
             tangents.push({ tx: dx / len, ty: dy / len })
         } else {
             // Carry forward previous valid tangent
             tangents.push(i > 0 ? tangents[i - 1] : { tx: 1, ty: 0 })
+        }
+    }
+
+    // Ensure tangent consistency: prevent >90° flips between consecutive points.
+    // Such flips cause left/right edge points to swap, creating self-intersecting paths
+    // and winding-0 holes in the fill. Legitimate U-turns change direction gradually
+    // through interpolated points and never exceed 90° per step.
+    for (let i = 1; i < n; i++) {
+        const dot = tangents[i].tx * tangents[i - 1].tx + tangents[i].ty * tangents[i - 1].ty
+        if (dot < 0) {
+            tangents[i] = { tx: -tangents[i].tx, ty: -tangents[i].ty }
         }
     }
 
