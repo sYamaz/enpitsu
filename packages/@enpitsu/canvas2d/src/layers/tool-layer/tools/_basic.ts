@@ -20,7 +20,8 @@ export abstract class BasicTool implements Tool {
             x,
             y,
             pressure: viewportPoint.pressure,
-            tags: viewportPoint.tags
+            tags: viewportPoint.tags,
+            timestamp: viewportPoint.timestamp
         }
         return rawInputPoint
     }

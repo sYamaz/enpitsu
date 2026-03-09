@@ -78,6 +78,7 @@ export class PenTool extends BasicTool {
                 y: p.y,
                 pressure: p1.pressure + dp * i,
                 tags: ['spline'],
+                timestamp: 0,
             }
         })
         stroke.points.push(p1, ...points, p2)
@@ -90,6 +91,7 @@ export class PenTool extends BasicTool {
         if (this.state.type !== 'drawing') {
             throw new Error('state is not drawing')
         }
+
         const { stroke } = this.state
         const pendingPoints = stroke.waitCalcPoints
 
@@ -111,6 +113,7 @@ export class PenTool extends BasicTool {
                         y: p.y,
                         pressure: p1.pressure + dp * i,
                         tags: ['spline'],
+                        timestamp: 0,
                     }
                 })
 
@@ -133,6 +136,7 @@ export class PenTool extends BasicTool {
                 y: p.y,
                 pressure: p1.pressure + dp * i,
                 tags: ['spline'],
+                timestamp: 0,
             }
         })
 

@@ -141,6 +141,7 @@ export class SelectorTool extends BasicTool {
                 y: p.y,
                 pressure: p1.pressure + dp * i,
                 tags: ['spline'],
+                timestamp: 0,
             }
         })
         stroke.points.push(p1, ...points, p2)
@@ -178,6 +179,7 @@ export class SelectorTool extends BasicTool {
                         y: p.y,
                         pressure: p1.pressure + dp * i,
                         tags: ["spline"],
+                        timestamp: 0,
                     }
                 })
 
@@ -200,6 +202,7 @@ export class SelectorTool extends BasicTool {
                 y: p.y,
                 pressure: p1.pressure + dp * i,
                 tags: ["spline"],
+                timestamp: 0,
             }
         })
 

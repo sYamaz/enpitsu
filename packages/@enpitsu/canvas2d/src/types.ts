@@ -65,6 +65,7 @@ export interface Enpitsu {
 export interface InputPoint extends Point {
     pressure: number;
     tags: string[]
+    timestamp: number
 }
 
 /**
