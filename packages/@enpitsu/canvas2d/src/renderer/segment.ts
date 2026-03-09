@@ -27,7 +27,23 @@ export const buildStrokeRenderData = (
 
     const ox = offset?.x ?? 0
     const oy = offset?.y ?? 0
-    const pts = points.map(p => ({ x: p.x + ox, y: p.y + oy, pressure: p.pressure }))
+
+    // Deduplicate closely-spaced points for stable tangent computation.
+    // At stroke start/end/pause, many Catmull-Rom interpolated points cluster
+    // at nearly the same position, causing noisy tangents and self-intersecting
+    // outline paths (→ winding-0 holes in the fill = mottled appearance).
+    const MIN_STEP = 1.0  // px
+    const pts: { x: number; y: number; pressure: number }[] = [
+        { x: points[0].x + ox, y: points[0].y + oy, pressure: points[0].pressure }
+    ]
+    for (let i = 1; i < points.length; i++) {
+        const prev = pts[pts.length - 1]
+        const dx = points[i].x + ox - prev.x
+        const dy = points[i].y + oy - prev.y
+        if (dx * dx + dy * dy >= MIN_STEP * MIN_STEP) {
+            pts.push({ x: points[i].x + ox, y: points[i].y + oy, pressure: points[i].pressure })
+        }
+    }
 
     const path = new Path2D()
 
