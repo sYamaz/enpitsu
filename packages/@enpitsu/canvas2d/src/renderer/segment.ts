@@ -28,10 +28,9 @@ export const buildStrokeRenderData = (
     const ox = offset?.x ?? 0
     const oy = offset?.y ?? 0
 
-    // Deduplicate closely-spaced points for stable tangent computation.
+    // Deduplicate closely-spaced points for stable rendering.
     // At stroke start/end/pause, many Catmull-Rom interpolated points cluster
-    // at nearly the same position, causing noisy tangents and self-intersecting
-    // outline paths (→ winding-0 holes in the fill = mottled appearance).
+    // at nearly the same position, causing tangent instability.
     const MIN_STEP = 1.0  // px
     const pts: { x: number; y: number; pressure: number }[] = [
         { x: points[0].x + ox, y: points[0].y + oy, pressure: points[0].pressure }
@@ -45,98 +44,48 @@ export const buildStrokeRenderData = (
         }
     }
 
+    // Build path as a collection of simple subpaths (circle per point + trapezoid per
+    // segment), all wound in the same direction (clockwise in screen coords = positive
+    // winding). With nonzero fill rule, overlapping subpaths sum to winding ±2, which
+    // is still nonzero → correctly filled. A single ctx.fill() call applies alpha once
+    // per pixel regardless of how many subpaths cover that pixel — no alpha accumulation.
     const path = new Path2D()
 
-    if (pts.length === 1) {
-        const r = radiusFromPen(pts[0].pressure, pen)
-        path.arc(pts[0].x, pts[0].y, r, 0, Math.PI * 2)
-        return { path, fillStyle: colorStyleFromPen(pts[0].pressure, pen) }
+    for (const pt of pts) {
+        const r = radiusFromPen(pt.pressure, pen)
+        // arc(anticlockwise=false) is clockwise in screen coords (positive winding)
+        path.moveTo(pt.x + r, pt.y)
+        path.arc(pt.x, pt.y, r, 0, Math.PI * 2)
     }
 
-    const n = pts.length
+    for (let i = 1; i < pts.length; i++) {
+        const pi = pts[i - 1]
+        const pj = pts[i]
+        const ri = radiusFromPen(pi.pressure, pen)
+        const rj = radiusFromPen(pj.pressure, pen)
 
-    // Compute unit tangents at each point
-    const tangents: { tx: number; ty: number }[] = []
-    for (let i = 0; i < n; i++) {
-        let dx: number, dy: number
-        if (i === 0) {
-            dx = pts[1].x - pts[0].x
-            dy = pts[1].y - pts[0].y
-        } else if (i === n - 1) {
-            dx = pts[n - 1].x - pts[n - 2].x
-            dy = pts[n - 1].y - pts[n - 2].y
-        } else {
-            dx = pts[i + 1].x - pts[i - 1].x
-            dy = pts[i + 1].y - pts[i - 1].y
-        }
+        const dx = pj.x - pi.x
+        const dy = pj.y - pi.y
         const len = Math.sqrt(dx * dx + dy * dy)
-        // Use 1e-4 threshold to avoid unstable tangents from nearly-coincident points
-        if (len > 1e-4) {
-            tangents.push({ tx: dx / len, ty: dy / len })
-        } else {
-            // Carry forward previous valid tangent
-            tangents.push(i > 0 ? tangents[i - 1] : { tx: 1, ty: 0 })
-        }
+        if (len < 1e-6) continue
+        const nx = -dy / len
+        const ny = dx / len
+
+        // Trapezoid wound clockwise in screen coords (positive winding, consistent
+        // with the circles above)
+        path.moveTo(pi.x + nx * ri, pi.y + ny * ri)
+        path.lineTo(pi.x - nx * ri, pi.y - ny * ri)
+        path.lineTo(pj.x - nx * rj, pj.y - ny * rj)
+        path.lineTo(pj.x + nx * rj, pj.y + ny * rj)
+        path.closePath()
     }
-
-    // Ensure tangent consistency: prevent >90° flips between consecutive points.
-    // Such flips cause left/right edge points to swap, creating self-intersecting paths
-    // and winding-0 holes in the fill. Legitimate U-turns change direction gradually
-    // through interpolated points and never exceed 90° per step.
-    for (let i = 1; i < n; i++) {
-        const dot = tangents[i].tx * tangents[i - 1].tx + tangents[i].ty * tangents[i - 1].ty
-        if (dot < 0) {
-            tangents[i] = { tx: -tangents[i].tx, ty: -tangents[i].ty }
-        }
-    }
-
-    // Compute radii and edge points
-    const radii = pts.map(p => radiusFromPen(p.pressure, pen))
-    // leftNormal = (-ty, tx), rightNormal = (ty, -tx)
-    const leftPoints = pts.map((p, i) => ({
-        x: p.x + (-tangents[i].ty) * radii[i],
-        y: p.y + tangents[i].tx * radii[i]
-    }))
-    const rightPoints = pts.map((p, i) => ({
-        x: p.x + tangents[i].ty * radii[i],
-        y: p.y + (-tangents[i].tx) * radii[i]
-    }))
-
-    // Build outline path
-    path.moveTo(leftPoints[0].x, leftPoints[0].y)
-    for (let i = 1; i < n; i++) {
-        path.lineTo(leftPoints[i].x, leftPoints[i].y)
-    }
-
-    // End cap: arc from leftNormalAngle to rightNormalAngle, anticlockwise
-    const et = tangents[n - 1]
-    const er = radii[n - 1]
-    const ep = pts[n - 1]
-    const leftAngleEnd = Math.atan2(et.tx, -et.ty)
-    const rightAngleEnd = Math.atan2(-et.tx, et.ty)
-    path.arc(ep.x, ep.y, er, leftAngleEnd, rightAngleEnd, true)
-
-    // Right edge backward
-    for (let i = n - 2; i >= 0; i--) {
-        path.lineTo(rightPoints[i].x, rightPoints[i].y)
-    }
-
-    // Start cap: arc from rightNormalAngle to leftNormalAngle, anticlockwise
-    const st = tangents[0]
-    const sr = radii[0]
-    const sp = pts[0]
-    const leftAngleStart = Math.atan2(st.tx, -st.ty)
-    const rightAngleStart = Math.atan2(-st.tx, st.ty)
-    path.arc(sp.x, sp.y, sr, rightAngleStart, leftAngleStart, true)
-
-    path.closePath()
 
     // Gradient fill along start→end axis (up to 20 color stops)
     let fillStyle: string | CanvasGradient
+    const n = pts.length
     const dx = pts[n - 1].x - pts[0].x
     const dy = pts[n - 1].y - pts[0].y
-    if (Math.sqrt(dx * dx + dy * dy) < 0.001) {
-        // Degenerate: start and end at same position, use middle point color
+    if (n === 1 || Math.sqrt(dx * dx + dy * dy) < 0.001) {
         fillStyle = colorStyleFromPen(pts[Math.floor(n / 2)].pressure, pen)
     } else {
         const gradient = ctx.createLinearGradient(pts[0].x, pts[0].y, pts[n - 1].x, pts[n - 1].y)
