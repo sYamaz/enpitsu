@@ -58,7 +58,7 @@ export const renderJoint = (ctx: OffscreenCanvasRenderingContext2D, p: InputPoin
     ctx.fillStyle = colorStyleFromPen(p.pressure, pen)
     ctx.lineWidth = 0
     ctx.beginPath()
-    ctx.arc(p.x, p.y, radiusFromPen(p.pressure, pen) - 0.5, 0, Math.PI * 2)
+    ctx.arc(p.x, p.y, radiusFromPen(p.pressure, pen), 0, Math.PI * 2)
     ctx.closePath()
     ctx.fill()
 
