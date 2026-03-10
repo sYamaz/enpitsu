@@ -72,6 +72,7 @@ export class PenTool extends BasicTool {
         const p3 = pendingPoints[1]
 
         const dp = (p2.pressure - p1.pressure) / this.splinePoints
+        const dt = (p2.timestamp - p1.timestamp) / this.splinePoints
         const ps = this.spline.interpolate(p0, p1, p2, p3, 0.5, this.splinePoints)
         const points: InputPoint[] = ps.map((p, i) => {
             return {
@@ -79,7 +80,7 @@ export class PenTool extends BasicTool {
                 y: p.y,
                 pressure: p1.pressure + dp * i,
                 tags: ['spline'],
-                timestamp: 0,
+                timestamp: p1.timestamp + dt * i,
             }
         })
         stroke.points.push(p1, ...points, p2)
@@ -107,6 +108,7 @@ export class PenTool extends BasicTool {
                 const p3 = rawPoint
 
                 const dp = (p2.pressure - p1.pressure) / this.splinePoints
+                const dt = (p2.timestamp - p1.timestamp) / this.splinePoints
                 const ps = this.spline.interpolate(p0, p1, p2, p3, 0.5, this.splinePoints)
                 const points: InputPoint[] = ps.map((p, i) => {
                     return {
@@ -114,7 +116,7 @@ export class PenTool extends BasicTool {
                         y: p.y,
                         pressure: p1.pressure + dp * i,
                         tags: ['spline'],
-                        timestamp: 0,
+                        timestamp: p1.timestamp + dt * i,
                     }
                 })
 
@@ -130,6 +132,7 @@ export class PenTool extends BasicTool {
         const p3 = rawPoint
 
         const dp = (p2.pressure - p1.pressure) / this.splinePoints
+        const dt = (p2.timestamp - p1.timestamp) / this.splinePoints
         const ps = this.spline.interpolate(p0, p1, p2, p3, 0.5, this.splinePoints)
         const points: InputPoint[] = ps.map((p, i) => {
             return {
@@ -137,7 +140,7 @@ export class PenTool extends BasicTool {
                 y: p.y,
                 pressure: p1.pressure + dp * i,
                 tags: ['spline'],
-                timestamp: 0,
+                timestamp: p1.timestamp + dt * i,
             }
         })
 
