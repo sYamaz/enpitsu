@@ -18,8 +18,9 @@ export class PenTool extends BasicTool {
         r: 50,
         g: 50,
         b: 50,
+        alpha: 0.9,
         maxThickness: 3,
-        minThickness: 0.5,
+        minThickness: 0.25,
         maxColorRatio: 1,
         minColorRatio: 0.95
     }
