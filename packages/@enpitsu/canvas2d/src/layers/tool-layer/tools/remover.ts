@@ -9,9 +9,10 @@ export class RemoverTool extends BasicTool {
     private cursor: InputPoint | null = null
     private readonly model: StrokeStore
 
-    constructor(transformer: ViewportTransformer, model: StrokeStore) {
+    constructor(transformer: ViewportTransformer, model: StrokeStore, initialSize?: number) {
         super(transformer)
         this.model = model
+        if (initialSize !== undefined) this.size = initialSize
     }
 
     getRenderState(): ToolRenderState {

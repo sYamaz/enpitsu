@@ -2,10 +2,21 @@ import { useCombinedLayer, useToolLayer } from "./layers"
 import { StrokeStore } from "./store"
 import { ViewportTransformer } from "./transformer"
 import { Enpitsu, InputPoint } from "./types"
+import { ToolPlugin, penTool, eraserTool, removerTool, selectorTool } from "./layers/tool-layer/tools"
+
+export type { ToolPlugin }
+
+const defaultToolPlugins: Map<string, ToolPlugin> = new Map([
+    ['pen', penTool()],
+    ['remover', removerTool()],
+    ['eraser', eraserTool()],
+    ['selector', selectorTool()],
+])
 
 export const useEnpitsu = (
     toolCanvas: HTMLCanvasElement,
-    combinedCanvas: HTMLCanvasElement
+    combinedCanvas: HTMLCanvasElement,
+    options?: { tools?: Record<string, ToolPlugin> }
 ): Enpitsu => {
     const dpr = window.devicePixelRatio ?? 1
     const transformer = new ViewportTransformer(1, dpr)
@@ -21,7 +32,10 @@ export const useEnpitsu = (
         transformer.dy = Math.max(canvasH * (1 - z), Math.min(0, transformer.dy))
     }
 
-    const toolLayer = useToolLayer(toolCanvas, transformer, store)
+    const toolPlugins = options?.tools
+        ? new Map(Object.entries(options.tools))
+        : defaultToolPlugins
+    const toolLayer = useToolLayer(toolCanvas, transformer, store, toolPlugins)
     const combineLayer = useCombinedLayer(combinedCanvas, transformer, store)
     
     const convertEvent = (ev: PointerEvent): InputPoint => {
