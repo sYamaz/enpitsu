@@ -125,6 +125,7 @@ export interface Pen {
     r: number
     g: number
     b: number
+    alpha?: number  // 0-1, default 1
 }
 
 export type ToolRenderState =

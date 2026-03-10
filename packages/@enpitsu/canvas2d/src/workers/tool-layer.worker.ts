@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { renderJoint, renderSegment } from '../renderer/segment'
+import { buildStrokeRenderData } from '../renderer/segment'
 import type { ToolRenderState, ToolWorkerInMessage, TransformSnapshot } from './tool-layer.worker.types'
 
 let ctx: OffscreenCanvasRenderingContext2D | null = null
@@ -43,13 +43,10 @@ const drawState = (ctx: OffscreenCanvasRenderingContext2D, state: ToolRenderStat
             break
         case 'pen': {
             if (state.points.length === 0) break
-            let prev = state.points[0]
-            renderJoint(ctx, prev, state.pen)
-            state.points.slice(1).forEach(current => {
-                renderSegment(ctx, prev, current, state.pen)
-                renderJoint(ctx, current, state.pen)
-                prev = current
-            })
+            const data = buildStrokeRenderData(ctx, state.points, state.pen)
+            if (!data) break
+            ctx.fillStyle = data.fillStyle
+            ctx.fill(data.path)
             break
         }
         case 'eraser':
@@ -63,13 +60,10 @@ const drawState = (ctx: OffscreenCanvasRenderingContext2D, state: ToolRenderStat
         }
         case 'selector_drawing': {
             if (state.points.length === 0) break
-            let prev = state.points[0]
-            renderJoint(ctx, prev, state.pen)
-            state.points.slice(1).forEach(current => {
-                renderSegment(ctx, prev, current, state.pen)
-                renderJoint(ctx, current, state.pen)
-                prev = current
-            })
+            const data = buildStrokeRenderData(ctx, state.points, state.pen)
+            if (!data) break
+            ctx.fillStyle = data.fillStyle
+            ctx.fill(data.path)
             break
         }
         case 'selector_selected': {
