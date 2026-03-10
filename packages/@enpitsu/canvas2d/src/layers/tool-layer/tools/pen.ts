@@ -14,7 +14,9 @@ export class PenTool extends BasicTool {
     private readonly splinePoints = 10
     private readonly store: StrokeStore
 
-    pen: Pen = {
+    pen: Pen
+
+    private static readonly defaultPen: Pen = {
         r: 50,
         g: 50,
         b: 50,
@@ -25,9 +27,10 @@ export class PenTool extends BasicTool {
         minColorRatio: 0.95
     }
 
-    constructor(transformer: ViewportTransformer, store: StrokeStore) {
+    constructor(transformer: ViewportTransformer, store: StrokeStore, initialPen?: Pen) {
         super(transformer)
         this.store = store
+        this.pen = initialPen ?? PenTool.defaultPen
     }
 
     getRenderState(): ToolRenderState {

@@ -49,7 +49,7 @@ export interface ToolConfigureStructure {
 }
 
 export interface Enpitsu {
-    useTool<k extends keyof ToolConfigureStructure>(type: k): void
+    useTool(type: string): void
     undo(): void
     redo(): void
     destroy(): void

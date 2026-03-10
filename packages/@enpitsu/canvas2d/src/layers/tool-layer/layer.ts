@@ -1,30 +1,32 @@
 import { useToolLayerRenderer } from './renderer'
-import { EraserTool, PenTool, RemoverTool, SelectorTool } from './tools'
+import { ToolPlugin } from './tools'
 import { StrokeStore } from '../../store'
 import { ViewportTransformer } from '../../transformer'
-import { InputPoint, Tool, ToolConfigureStructure } from 'types'
+import { InputPoint, Tool } from 'types'
 
 export const useToolLayer = (
     canvas: HTMLCanvasElement,
     transformer: ViewportTransformer,
-    store: StrokeStore
+    store: StrokeStore,
+    toolPlugins: Map<string, ToolPlugin>
 ) => {
     const renderer = useToolLayerRenderer(canvas, transformer)
 
-    const toolMap = new Map<keyof ToolConfigureStructure, Tool>()
-    toolMap.set('pen', new PenTool(transformer, store))
-    toolMap.set('remover', new RemoverTool(transformer, store))
-    toolMap.set('eraser', new EraserTool(transformer, store))
-    toolMap.set('selector', new SelectorTool(transformer, store))
+    const toolMap = new Map<string, Tool>()
+    for (const [name, factory] of toolPlugins) {
+        toolMap.set(name, factory(transformer, store))
+    }
 
-    let tool = toolMap.get('pen')!
+    let tool = toolMap.values().next().value as Tool | undefined
     let lastMoveTimestamp: number | null = null
 
-    renderer.setTool(tool)
+    if (tool) renderer.setTool(tool)
 
     return {
-        useTool: function<k extends keyof ToolConfigureStructure>(type: k) {
-            tool = toolMap.get(type)!
+        useTool: function(type: string) {
+            const next = toolMap.get(type)
+            if (!next) return
+            tool = next
             renderer.setTool(tool)
             renderer.clear()
         },
