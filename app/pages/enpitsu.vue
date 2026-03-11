@@ -7,8 +7,8 @@
                 enpitsu - a canvas drawing demo {{ debug }}
             </div>
 
-            <!-- row 2-->
-            <div>
+            <!-- row 2: 通常ツール (リプレイ中は非表示) -->
+            <div v-if="!replayController">
                 <ToolBtn @action="setPen1">
                     <Icon name="mdi:pencil" style="color: black;"></Icon>
                 </ToolBtn>
@@ -32,6 +32,29 @@
                 <ToolBtn @action="redoAction">
                     <Icon name="mdi:redo" style="color: black;"></Icon>
                 </ToolBtn>
+
+                <ToolBtn @action="startReplay">
+                    <Icon name="mdi:play" style="color: black;"></Icon>
+                </ToolBtn>
+            </div>
+
+            <!-- row 2: リプレイコントロール -->
+            <div v-else style="display: flex; align-items: center; gap: 8px;">
+                <ToolBtn @action="toggleReplayPlay">
+                    <Icon :name="replayIsPlaying ? 'mdi:pause' : 'mdi:play'" style="color: black;"></Icon>
+                </ToolBtn>
+                <input
+                    type="range"
+                    min="0"
+                    max="1000"
+                    step="1"
+                    :value="Math.round(replayProgress * 1000)"
+                    @input="onSeekInput"
+                    style="flex: 1; min-width: 120px;"
+                />
+                <ToolBtn @action="stopReplay">
+                    <Icon name="mdi:stop" style="color: black;"></Icon>
+                </ToolBtn>
             </div>
         </div>
 
@@ -48,7 +71,7 @@ definePageMeta({ ssr: false })
 
 import ToolBtn from '~/components/tool-btn.vue'
 import ToolHeader from '~/components/tool-header.vue';
-import { useEnpitsu, type Enpitsu } from 'canvas2d'
+import { useEnpitsu, type Enpitsu, type ReplayController } from 'canvas2d'
 const CURRENT_CANVAS_ID = "current_canvas";
 const CONFIRMED_CANVAS_ID = "confirmed_canvas"
 const CANVAS_WIDTH = 800
@@ -58,7 +81,25 @@ const debug = ref('')
 
 let enpitsu: Enpitsu | null = null
 
+// Replay state
+const replayController = ref<ReplayController | null>(null)
+const replayProgress = ref(0)
+const replayIsPlaying = ref(false)
+
+let replayRafId = 0
+
+const _syncReplayState = () => {
+    if (!replayController.value) return
+    replayProgress.value = replayController.value.progress
+    replayIsPlaying.value = replayController.value.isPlaying
+    if (replayController.value.isPlaying) {
+        replayRafId = requestAnimationFrame(_syncReplayState)
+    }
+}
+
 onUnmounted(() => {
+    cancelAnimationFrame(replayRafId)
+    replayController.value?.destroy()
     enpitsu?.destroy()
 })
 
@@ -135,6 +176,42 @@ const undoAction = () => {
 
 const redoAction = () => {
     enpitsu?.redo()
+}
+
+const startReplay = () => {
+    if (!enpitsu) return
+    replayController.value = enpitsu.startReplay()
+    replayProgress.value = 0
+    replayIsPlaying.value = false
+}
+
+const toggleReplayPlay = () => {
+    const ctrl = replayController.value
+    if (!ctrl) return
+    if (ctrl.isPlaying) {
+        ctrl.pause()
+        cancelAnimationFrame(replayRafId)
+        replayIsPlaying.value = false
+    } else {
+        ctrl.play()
+        replayRafId = requestAnimationFrame(_syncReplayState)
+    }
+}
+
+const onSeekInput = (e: Event) => {
+    const ctrl = replayController.value
+    if (!ctrl) return
+    const val = Number((e.target as HTMLInputElement).value)
+    ctrl.seek(val / 1000)
+    replayProgress.value = ctrl.progress
+}
+
+const stopReplay = () => {
+    cancelAnimationFrame(replayRafId)
+    replayController.value?.destroy()
+    replayController.value = null
+    replayProgress.value = 0
+    replayIsPlaying.value = false
 }
 
 
