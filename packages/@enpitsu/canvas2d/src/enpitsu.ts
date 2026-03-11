@@ -3,6 +3,7 @@ import { StrokeStore } from "./store"
 import { ViewportTransformer } from "./transformer"
 import { Enpitsu, InputPoint } from "./types"
 import { ToolPlugin, penTool, eraserTool, removerTool, selectorTool } from "./layers/tool-layer/tools"
+import { createReplayController } from "./replay/replay-controller"
 
 export type { ToolPlugin }
 
@@ -183,6 +184,23 @@ export const useEnpitsu = (
         useTool: toolLayer.useTool,
         undo: () => { store.undo(); combineLayer.requestRender() },
         redo: () => { store.redo(); combineLayer.requestRender() },
+        startReplay: () => {
+            toolLayer.cancelStroke()
+            toolCanvas.style.pointerEvents = 'none'
+            const controller = createReplayController(store, combineLayer)
+            const originalDestroy = controller.destroy.bind(controller)
+            return {
+                get progress() { return controller.progress },
+                get isPlaying() { return controller.isPlaying },
+                play: () => controller.play(),
+                pause: () => controller.pause(),
+                seek: (ratio: number) => controller.seek(ratio),
+                destroy: () => {
+                    originalDestroy()
+                    toolCanvas.style.pointerEvents = ''
+                }
+            }
+        },
         destroy: () => { toolLayer.destroy(); combineLayer.destroy() }
     }
 }

@@ -48,10 +48,53 @@ export interface ToolConfigureStructure {
     }
 }
 
+/**
+ * リプレイ機能のコントローラー。
+ *
+ * `Enpitsu.startReplay()` で取得する。リプレイモード中は通常の描画入力が無効化され、
+ * `StrokeStore` に蓄積されたストローク履歴を時系列に沿って再生できる。
+ *
+ * 再生位置は 0–1 の ratio で管理する:
+ *   - 0 = 最初のストロークの先頭点
+ *   - 1 = 最後のストロークの末尾点
+ *
+ * 使い終わったら必ず `destroy()` を呼ぶこと。呼ばないとポインターイベントが
+ * toolCanvas で永続的に無効化されたままになる。
+ */
+export interface ReplayController {
+    /** 現在位置から再生を開始する。末尾 (progress === 1) の場合は先頭に巻き戻してから再生する。 */
+    play(): void
+    /** 現在位置で一時停止する。 */
+    pause(): void
+    /**
+     * 任意の位置にシークする。再生中でも呼び出し可能。
+     * @param ratio 0–1。範囲外は clamp される。
+     */
+    seek(ratio: number): void
+    /** 現在の再生位置 (0–1)。UI 側が参照するたびに最新値を返す getter。 */
+    readonly progress: number
+    readonly isPlaying: boolean
+    /**
+     * リプレイを終了し、通常描画モードに戻す。
+     * - rAF ループを停止する
+     * - `combinedLayer.setNormalMode()` を呼んで StoreStore の全ストロークを再描画する
+     * - toolCanvas の pointerEvents を復元する
+     */
+    destroy(): void
+}
+
 export interface Enpitsu {
     useTool(type: string): void
     undo(): void
     redo(): void
+    /**
+     * リプレイモードを開始し、`ReplayController` を返す。
+     *
+     * 呼び出し時に進行中のストロークをキャンセルし、toolCanvas への
+     * ポインターイベントを無効化する。戻り値の `destroy()` を呼ぶまで
+     * ユーザーは描画できない。
+     */
+    startReplay(): ReplayController
     destroy(): void
 }
 
