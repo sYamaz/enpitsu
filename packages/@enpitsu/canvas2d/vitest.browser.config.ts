@@ -1,0 +1,15 @@
+import { defineConfig } from 'vitest/config'
+import tsconfigPaths from 'vite-tsconfig-paths'
+
+export default defineConfig({
+    plugins: [tsconfigPaths()],
+    test: {
+        browser: {
+            enabled: true,
+            provider: 'playwright',
+            instances: [{ browser: 'chromium' }],
+            headless: true,
+        },
+        include: ['src/**/*.browser.test.ts'],
+    },
+})
