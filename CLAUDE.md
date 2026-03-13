@@ -68,7 +68,7 @@ Both canvases call `transferControlToOffscreen()`, so all rendering uses `Offscr
 
 #### Tool Layer (`layers/tool-layer/`)
 
-- **`layer.ts`** (`useToolLayer`) — Manages the active tool and renders it on each animation frame. Throttles `onPointerMove` to one render per `requestAnimationFrame`.
+- **`layer.ts`** (`useToolLayer`) — Manages the active tool and triggers renders in response to pointer events. Deduplicates `onPointerMove` by timestamp; the renderer queues at most one outstanding render message to the worker at a time.
 - **`renderer.ts`** (`useToolLayerRenderer`) — Wraps the offscreen canvas context; clears and re-renders the active tool's state.
 - **`tools/_basic.ts`** (`BasicTool`) — Abstract base class. Converts viewport pointer coordinates to raw canvas coordinates via the inverse of `ViewportTransformer.getTransformForController()`. Subclasses implement `_onPointerDown`, `_onPointerMove`, `_onPointerUp`, `_render`.
 - **`tools/pen.ts`** (`PenTool`) — Draws strokes using Catmull-Rom spline interpolation (`@syamaz/catmull-rom-spline`). Accumulates raw points in a buffer, interpolates between them, and flushes to `StrokeStore` on `pointerup`.
