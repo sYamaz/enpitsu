@@ -14,13 +14,13 @@ npm run preview   # Preview production build
 
 ### canvas2d Package (`packages/@enpitsu/canvas2d/`)
 ```bash
-npm run build     # Compile to dist/ via tsc (required after changes, before Nuxt picks them up)
-npm run dev       # Vite dev server for the package itself
+npm run build         # Compile to dist/ via Vite (required after changes, before Nuxt picks them up)
+npm run dev           # Vite dev server for the package itself
+npm run test          # Run unit tests with Vitest
+npm run test:browser  # Run browser tests with Vitest
 ```
 
 After editing the canvas2d package, rebuild it with `npm run build` inside that directory so the Nuxt app picks up the changes (it imports from `dist/`).
-
-There are no tests configured in this project.
 
 ## Architecture
 
@@ -31,6 +31,7 @@ This monorepo has two parts:
 
 ### Nuxt App (`app/`)
 
+- **`pages/index.vue`** — Landing / entry page.
 - **`pages/enpitsu.vue`** — Main drawing demo. Mounts two stacked `<canvas>` elements, initializes `useEnpitsu()` from the canvas2d library, and wires up tool buttons.
 - **`pages/segment.vue`** — Low-level segment rendering test page.
 - **`components/`** — `tool-btn.vue`, `tool-header.vue`, `tool-numeri-updown.vue` (UI controls).
@@ -41,7 +42,11 @@ This monorepo has two parts:
 
 The library's `baseUrl` is `src/`, so internal imports use bare module names like `import { Stroke } from 'types'` resolving to `src/types.ts`.
 
-**Entry point:** `useEnpitsu(toolCanvas, combinedCanvas): Enpitsu`
+**Entry point:** `useEnpitsu(toolCanvas, combinedCanvas, options?): Enpitsu`
+
+`options` supports:
+- `tools?: Record<string, ToolPlugin>` — override default tool set with custom plugins
+- `viewport?: { minZoom?, maxZoom?, zoomEnabled? }` — constrain zoom behavior
 
 #### Two-Layer Canvas System
 
@@ -56,23 +61,36 @@ Both canvases call `transferControlToOffscreen()`, so all rendering uses `Offscr
 
 #### Core Modules
 
-- **`types.ts`** — All shared interfaces: `Point`, `InputPoint`, `Stroke`, `CurrentStroke`, `Pen`, `Segment`, `Joint`, `Tool`, `Enpitsu`, `ToolConfigureStructure`.
+- **`types.ts`** — All shared interfaces: `Point`, `InputPoint`, `Stroke`, `CurrentStroke`, `Pen`, `Segment`, `Joint`, `Tool`, `Enpitsu`, `ToolConfigureStructure`, `ReplayController`.
 - **`store/stroke-store.ts`** — `StrokeStore`: holds confirmed stroke history, tracks `needClear` flag to trigger full redraw when strokes are modified (e.g. by Selector tool).
 - **`transformer/viewport-transformer.ts`** — `ViewportTransformer`: manages DPR, zoom, and pan. Provides two matrices: `getTransformForRender()` (includes DPR) for canvas context, `getTransformForController()` (no DPR) for coordinate inversion in tools.
 - **`renderer/segment.ts`** — Low-level primitives: `renderSegment()` draws a trapezoid between two points with a pressure-based gradient; `renderJoint()` draws a filled circle at a point.
 
 #### Tool Layer (`layers/tool-layer/`)
 
-- **`layer.ts`** (`useToolLayer`) — Manages the active tool and renders it on each animation frame. Throttles `onPointerMove` to one render per `requestAnimationFrame`.
+- **`layer.ts`** (`useToolLayer`) — Manages the active tool and triggers renders in response to pointer events. Deduplicates `onPointerMove` by timestamp; the renderer queues at most one outstanding render message to the worker at a time.
 - **`renderer.ts`** (`useToolLayerRenderer`) — Wraps the offscreen canvas context; clears and re-renders the active tool's state.
 - **`tools/_basic.ts`** (`BasicTool`) — Abstract base class. Converts viewport pointer coordinates to raw canvas coordinates via the inverse of `ViewportTransformer.getTransformForController()`. Subclasses implement `_onPointerDown`, `_onPointerMove`, `_onPointerUp`, `_render`.
 - **`tools/pen.ts`** (`PenTool`) — Draws strokes using Catmull-Rom spline interpolation (`@syamaz/catmull-rom-spline`). Accumulates raw points in a buffer, interpolates between them, and flushes to `StrokeStore` on `pointerup`.
 - **`tools/selector.ts`** (`SelectorTool`) — Lasso selection. On `pointerup`, uses ray-casting and line-segment intersection to find strokes inside the selection polygon. Drag inside the selection bounding box moves selected strokes by updating their `offset` property and calling `StrokeStore.updateConfirmedStrokes()`.
 - **`tools/eraser.ts`** / **`tools/remover.ts`** — Erase by pixel / remove whole strokes.
+- **`tools/index.ts`** — Exports `ToolPlugin` type and factory functions (`penTool`, `eraserTool`, `removerTool`, `selectorTool`) for plugin-based tool registration.
+
+#### Web Workers (`workers/`)
+
+Both layers delegate all canvas rendering to Web Workers:
+- **`tool-layer.worker.ts`** — Receives drawing commands from the tool layer; renders active stroke on the offscreen tool canvas.
+- **`combined-layer.worker.ts`** — Receives stroke snapshots and transform state; renders confirmed strokes on the offscreen combined canvas.
+
+This means canvas operations run off the main thread. Debug rendering issues in the worker files, not in the layer/renderer files directly.
 
 #### Combined Layer (`layers/combined-layer/`)
 
 - **`renderer.ts`** (`useCombinedLayerRenderer`) — On each render, checks `StrokeStore.needClear`; if true, clears the canvas and re-renders all strokes. Otherwise, only renders strokes with `needRender: true` (incremental). Strokes have an optional `offset` field that is applied during rendering (used by the selector tool to move strokes without mutating their points).
+
+#### Replay (`replay/`)
+
+- **`replay-controller.ts`** (`createReplayController`) — Controls playback of recorded strokes. Computes a timeline from `StrokeStore` timestamps (startTs–endTs), exposes `play()`, `pause()`, `seek(ratio)`, and `destroy()`. Filters stroke points by timestamp on the main thread and passes snapshots to the combined layer worker — no worker-side changes required.
 
 #### Stroke Data Flow
 
