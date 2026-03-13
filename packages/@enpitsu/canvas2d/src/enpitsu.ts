@@ -17,8 +17,19 @@ const defaultToolPlugins: Map<string, ToolPlugin> = new Map([
 export const useEnpitsu = (
     toolCanvas: HTMLCanvasElement,
     combinedCanvas: HTMLCanvasElement,
-    options?: { tools?: Record<string, ToolPlugin> }
+    options?: {
+        tools?: Record<string, ToolPlugin>
+        viewport?: {
+            minZoom?: number
+            maxZoom?: number
+            zoomEnabled?: boolean
+        }
+    }
 ): Enpitsu => {
+    const minZoom = options?.viewport?.minZoom ?? 0.1
+    const maxZoom = options?.viewport?.maxZoom ?? Infinity
+    const zoomEnabled = options?.viewport?.zoomEnabled ?? true
+
     const dpr = window.devicePixelRatio ?? 1
     const transformer = new ViewportTransformer(1, dpr)
     const store = new StrokeStore()
@@ -104,7 +115,12 @@ export const useEnpitsu = (
             if (isPinching && activePointers.size === 2) {
                 const { dist, mid } = getPinchInfo()
                 const scale = dist / lastPinchDist
-                const newZoom = Math.max(0.1, transformer.zoomRatio * scale)
+                if (!zoomEnabled) {
+                    lastPinchDist = dist
+                    lastPinchMid = mid
+                    return
+                }
+                const newZoom = Math.min(maxZoom, Math.max(minZoom, transformer.zoomRatio * scale))
                 const actualScale = newZoom / transformer.zoomRatio
                 // ピンチ中心でズーム + 中心点の移動でパン
                 transformer.dx = lastPinchMid.x - (lastPinchMid.x - transformer.dx) * actualScale + (mid.x - lastPinchMid.x)
@@ -160,15 +176,17 @@ export const useEnpitsu = (
         ev.preventDefault()
 
         if (ev.ctrlKey) {
-            // ピンチイン・アウト (iOS pinch / Ctrl+scroll)
-            const scale = 1 - ev.deltaY * 0.003
-            const newZoom = Math.max(0.1, transformer.zoomRatio * scale)
-            const actualScale = newZoom / transformer.zoomRatio
+            if (zoomEnabled) {
+                // ピンチイン・アウト (iOS pinch / Ctrl+scroll)
+                const scale = 1 - ev.deltaY * 0.003
+                const newZoom = Math.min(maxZoom, Math.max(minZoom, transformer.zoomRatio * scale))
+                const actualScale = newZoom / transformer.zoomRatio
 
-            // ポインター位置を中心にズーム
-            transformer.dx = ev.offsetX - (ev.offsetX - transformer.dx) * actualScale
-            transformer.dy = ev.offsetY - (ev.offsetY - transformer.dy) * actualScale
-            transformer.zoomRatio = newZoom
+                // ポインター位置を中心にズーム
+                transformer.dx = ev.offsetX - (ev.offsetX - transformer.dx) * actualScale
+                transformer.dy = ev.offsetY - (ev.offsetY - transformer.dy) * actualScale
+                transformer.zoomRatio = newZoom
+            }
         } else {
             // パン (2本指スワイプ)
             transformer.dx -= ev.deltaX
