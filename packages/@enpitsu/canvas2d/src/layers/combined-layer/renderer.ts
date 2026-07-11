@@ -9,6 +9,12 @@ export const useCombinedLayerRenderer = (
     transformer: ViewportTransformer,
     store: StrokeStore
 ) => {
+    if (typeof canvas.transferControlToOffscreen !== 'function') {
+        throw new Error(
+            '[enpitsu] OffscreenCanvas (transferControlToOffscreen) is not supported in this browser. ' +
+            'Requires Safari 16.4+, Chrome 69+, or Firefox 105+.'
+        )
+    }
     const offscreen = canvas.transferControlToOffscreen()
     const worker = new CombinedLayerWorker()
     worker.postMessage({ type: 'init', canvas: offscreen }, [offscreen])
@@ -24,6 +30,17 @@ export const useCombinedLayerRenderer = (
                 _doRender()
             }
         }
+    }
+
+    // ワーカー内で例外が起きた場合、render_done が返らず pendingRender が
+    // true のまま張り付いて描画が恒久停止する。フラグを戻して復旧可能にする。
+    worker.onerror = (e) => {
+        console.error('[enpitsu] combined-layer worker error', e)
+        pendingRender = false
+        hasPendingRequest = false
+    }
+    worker.onmessageerror = () => {
+        pendingRender = false
     }
 
     const _doRender = () => {
