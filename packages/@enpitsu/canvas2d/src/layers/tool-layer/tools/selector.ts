@@ -127,6 +127,14 @@ export class SelectorTool extends BasicTool {
 
         const { stroke } = this.state
         const pendingPoints = stroke.waitCalcPoints
+
+        // タップ等でスプライン補間用の点が溜まっていない場合は、
+        // 選択を確定せず解除する（クラッシュ回避）。
+        if (stroke.points.length === 0) {
+            this.state = { type: 'idle' }
+            return
+        }
+
         // 最後は p, INTERPORATE_POINTS, p, pとなってるはず
         const p0 = stroke.points[stroke.points.length - 1 - this.splinePoints]
         const p1 = pendingPoints[0]
@@ -153,9 +161,9 @@ export class SelectorTool extends BasicTool {
     }
 
     protected _addPoint = (rawPoint: InputPoint): void => {
-        if (this.state.type !== 'drawing') {
-            throw new Error("state is not drawing")
-        }
+        // 不整合なイベント列で drawing 以外の状態になっている場合は安全に無視する
+        if (this.state.type !== 'drawing') return
+
         const { stroke } = this.state
         const pendingPoints = stroke.waitCalcPoints
 

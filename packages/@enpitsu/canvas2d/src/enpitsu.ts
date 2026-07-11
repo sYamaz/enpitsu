@@ -52,7 +52,9 @@ export const useEnpitsu = (
     
     const convertEvent = (ev: PointerEvent): InputPoint => {
         return {
-            pressure: ev.pressure,
+            // マウスや一部の入力では押下中でも pressure が 0 になり、線が
+            // minThickness（極細）で描かれて見えなくなる。0 の場合は既定圧にフロアする。
+            pressure: ev.pressure > 0 ? ev.pressure : 0.5,
             tags: [ev.pointerType],
             x: ev.offsetX,
             y: ev.offsetY,
@@ -103,6 +105,8 @@ export const useEnpitsu = (
             }
         }
         if (shouldRejectTouchEvent(ev)) return
+        // ポインタをキャプチャして、canvas 外へドラッグしても move/up を取りこぼさない
+        try { toolCanvas.setPointerCapture(ev.pointerId) } catch { /* 非対応環境は無視 */ }
         toolLayer.onPointerDown(convertEvent(ev))
         if (ev.pointerType === 'touch') drawingPointers.add(ev.pointerId)
         combineLayer.requestRender()
@@ -154,11 +158,13 @@ export const useEnpitsu = (
         if (isPinching) return
         if (ev.pointerType === 'touch' && !drawingPointers.has(ev.pointerId)) return
         drawingPointers.delete(ev.pointerId)
+        try { toolCanvas.releasePointerCapture(ev.pointerId) } catch { /* 非対応環境は無視 */ }
         toolLayer.onPointerUp(convertEvent(ev))
         combineLayer.requestRender()
     })
 
     toolCanvas.addEventListener('pointercancel', ev => {
+        try { toolCanvas.releasePointerCapture(ev.pointerId) } catch { /* 非対応環境は無視 */ }
         if (ev.pointerType === 'pen') {
             penActiveCount = Math.max(0, penActiveCount - 1)
             lastPenActivityTime = Date.now()

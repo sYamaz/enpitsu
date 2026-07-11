@@ -64,11 +64,22 @@ export class PenTool extends BasicTool {
     protected _onPointerUp = (rawPoint: InputPoint): void => {
         this._addPoint(rawPoint)
 
-        if (this.state.type !== 'drawing') {
-            throw new Error('state is not drawing')
-        }
+        // 不整合なイベント列（pointerdown を挟まない pointerup 等）は安全に無視する
+        if (this.state.type !== 'drawing') return
+
         const { stroke } = this.state
         const pendingPoints = stroke.waitCalcPoints
+
+        // クイックタップ等でスプライン補間用の点が溜まっていない場合、
+        // 溜まっている生の点をそのまま確定して点（ドット）を描く。
+        if (stroke.points.length === 0) {
+            stroke.points.push(...pendingPoints)
+            stroke.waitCalcPoints.splice(0)
+            if (stroke.points.length > 0) this.store.pushStrokes(stroke)
+            this.state = { type: 'idle' }
+            return
+        }
+
         const p0 = stroke.points[stroke.points.length - 1 - this.splinePoints]
         const p1 = pendingPoints[0]
         const p2 = pendingPoints[1]
@@ -93,9 +104,8 @@ export class PenTool extends BasicTool {
     }
 
     protected _addPoint = (rawPoint: InputPoint): void => {
-        if (this.state.type !== 'drawing') {
-            throw new Error('state is not drawing')
-        }
+        // 不整合なイベント列で drawing 以外の状態になっている場合は安全に無視する
+        if (this.state.type !== 'drawing') return
 
         const { stroke } = this.state
         const pendingPoints = stroke.waitCalcPoints

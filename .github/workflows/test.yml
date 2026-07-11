@@ -1,0 +1,36 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  canvas2d:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/@enpitsu/canvas2d
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: packages/@enpitsu/canvas2d/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # chromium だけでなく webkit(Safari 相当) も入れて OffscreenCanvas /
+      # pointer 周りのクロスブラウザ挙動を CI で実測する。
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium webkit
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Browser tests (chromium + webkit)
+        run: npm run test:browser

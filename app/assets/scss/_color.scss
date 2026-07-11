@@ -1,9 +1,10 @@
-$bgColor: #FFFFFF;
-$baseColor-1: #5D639E;
-$baseColor-2: #8B90BE;
-$baseColor-3: #BFC2DF;
-$baseColor-4: #DEDFEF;
-$subColor-1: #DA5019;
-$subColor-2: #E6855E;
-$subColor-3: #F3C0AB;
-$subColor-4: #F9DFD5;
+// モノクロ・パレット（SCSS 変数版）
+// 実体は main.scss の :root カスタムプロパティ（--ink 等）。
+// こちらは nuxt.config.ts の additionalData 経由で全コンポーネントに注入され、
+// <style lang="scss"> 内から参照したい場合のフォールバックとして残す。
+// 変数宣言のみのため、未使用でも出力 CSS には一切含まれない。
+$paper: #ffffff;
+$paper-alt: #f6f6f6;
+$ink: #1a1a1a;
+$ink-muted: #6b6b6b;
+$line: #e6e6e6;

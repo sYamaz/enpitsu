@@ -1,47 +1,51 @@
 <template>
+  <div class="enpitsu-page">
     <toolHeader>
         <!-- https://iconify.design -->
-        <div style="width: 100%;">
-            <!-- row 1-->
-            <div>
-                enpitsu - a canvas drawing demo {{ debug }}
+        <div class="toolbar">
+            <div class="toolbar__brand">
+                <NuxtLink to="/" class="toolbar__name">enpitsu</NuxtLink>
             </div>
 
-            <!-- row 2: 通常ツール (リプレイ中は非表示) -->
-            <div v-if="!replayController">
-                <ToolBtn @action="setPen1">
-                    <Icon name="mdi:pencil" style="color: black;"></Icon>
+            <!-- 通常ツール (リプレイ中は非表示) -->
+            <div v-if="!replayController" class="toolbar__tools">
+                <ToolBtn :active="activeTool === 'pen'" @action="setPen1">
+                    <Icon name="mdi:pencil" />
                 </ToolBtn>
 
-                <ToolBtn @action="setRemover">
-                    <Icon name="mdi:box-cutter-off" style="color: black;"></Icon>
+                <ToolBtn :active="activeTool === 'remover'" @action="setRemover">
+                    <Icon name="mdi:box-cutter-off" />
                 </ToolBtn>
 
-                <ToolBtn @action="setEraser">
-                    <Icon name="mdi:eraser" style="color: black;"></Icon>
+                <ToolBtn :active="activeTool === 'eraser'" @action="setEraser">
+                    <Icon name="mdi:eraser" />
                 </ToolBtn>
 
-                <ToolBtn @action="setSelector">
-                    <Icon name="mdi:cursor-default" style="color: black;"></Icon>
+                <ToolBtn :active="activeTool === 'selector'" @action="setSelector">
+                    <Icon name="mdi:cursor-default" />
                 </ToolBtn>
+
+                <span class="toolbar__divider" />
 
                 <ToolBtn @action="undoAction">
-                    <Icon name="mdi:undo" style="color: black;"></Icon>
+                    <Icon name="mdi:undo" />
                 </ToolBtn>
 
                 <ToolBtn @action="redoAction">
-                    <Icon name="mdi:redo" style="color: black;"></Icon>
+                    <Icon name="mdi:redo" />
                 </ToolBtn>
 
+                <span class="toolbar__divider" />
+
                 <ToolBtn @action="startReplay">
-                    <Icon name="mdi:play" style="color: black;"></Icon>
+                    <Icon name="mdi:play" />
                 </ToolBtn>
             </div>
 
-            <!-- row 2: リプレイコントロール -->
-            <div v-else style="display: flex; align-items: center; gap: 8px;">
+            <!-- リプレイコントロール -->
+            <div v-else class="toolbar__replay">
                 <ToolBtn @action="toggleReplayPlay">
-                    <Icon :name="replayIsPlaying ? 'mdi:pause' : 'mdi:play'" style="color: black;"></Icon>
+                    <Icon :name="replayIsPlaying ? 'mdi:pause' : 'mdi:play'" />
                 </ToolBtn>
                 <input
                     type="range"
@@ -50,20 +54,26 @@
                     step="1"
                     :value="Math.round(replayProgress * 1000)"
                     @input="onSeekInput"
-                    style="flex: 1; min-width: 120px;"
+                    class="toolbar__seek"
                 />
                 <ToolBtn @action="stopReplay">
-                    <Icon name="mdi:stop" style="color: black;"></Icon>
+                    <Icon name="mdi:stop" />
                 </ToolBtn>
             </div>
         </div>
-
     </toolHeader>
-    <div style="touch-action: manipulation; height: 100%; position: relative; margin: 8px;">
-        <canvas :tabindex="1" :id="CURRENT_CANVAS_ID"
-            style="position: absolute; z-index: 2; background-color: transparent;" />
-        <canvas :id="CONFIRMED_CANVAS_ID" style="position: absolute; z-index: 1;" />
+
+    <div class="canvas-stage">
+        <p v-if="unsupported" class="unsupported">
+            お使いのブラウザは OffscreenCanvas に対応していないため描画できません。<br>
+            Safari 16.4 以降、または最新の Chrome / Firefox でお試しください。
+        </p>
+        <div v-show="!unsupported" class="canvas-wrap">
+            <canvas :tabindex="1" :id="CURRENT_CANVAS_ID" class="canvas canvas--current" />
+            <canvas :id="CONFIRMED_CANVAS_ID" class="canvas canvas--confirmed" />
+        </div>
     </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -77,9 +87,21 @@ const CONFIRMED_CANVAS_ID = "confirmed_canvas"
 const CANVAS_WIDTH = 800
 const CANVAS_HEIGHT = 600
 
-const debug = ref('')
-
 let enpitsu: Enpitsu | null = null
+
+// 選択中ツール（ツールボタンのアクティブ表示に使う）
+const activeTool = ref<string>('pen')
+
+// OffscreenCanvas 非対応ブラウザ（古い iOS Safari 等）向けフォールバック表示
+const unsupported = ref(false)
+
+const onKeydown = (e: KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+        e.preventDefault()
+        if (e.shiftKey) enpitsu?.redo()
+        else enpitsu?.undo()
+    }
+}
 
 // Replay state
 const replayController = ref<ReplayController | null>(null)
@@ -99,6 +121,7 @@ const _syncReplayState = () => {
 
 onUnmounted(() => {
     cancelAnimationFrame(replayRafId)
+    window.removeEventListener('keydown', onKeydown)
     replayController.value?.destroy()
     enpitsu?.destroy()
 })
@@ -121,53 +144,39 @@ onMounted(() => {
     confirmedCanvas.style.width = `${CANVAS_WIDTH}px`
     confirmedCanvas.style.height = `${CANVAS_HEIGHT}px`
 
-    enpitsu = useEnpitsu(currentCanvas, confirmedCanvas)
+    try {
+        enpitsu = useEnpitsu(currentCanvas, confirmedCanvas)
+        // 既定でペンを選択しておく（起動直後から描けるように）
+        enpitsu.useTool('pen')
+        activeTool.value = 'pen'
+    } catch (e) {
+        // OffscreenCanvas 非対応など初期化に失敗した場合はフォールバック表示に切り替える
+        console.error('[enpitsu] failed to initialize drawing engine', e)
+        unsupported.value = true
+        return
+    }
 
-    window.addEventListener('keydown', (e) => {
-        if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
-            e.preventDefault()
-            if (e.shiftKey) enpitsu?.redo()
-            else enpitsu?.undo()
-        }
-    })
-
-    // // ctx.globalCompositeOperation = 'multiply'
-    // ctx.globalCompositeOperation = 'source-over'
-
-    // 必ずしも必要ではなさそう
-    // document.addEventListener('gesturestart', (ev) => ev.preventDefault(), { passive: false });
-    // document.addEventListener('gesturechange', (ev) => ev.preventDefault(), { passive: false });
-    // document.addEventListener('gestureend', (ev) => ev.preventDefault(), { passive: false });
-    // document.addEventListener('dblclick', (ev) => ev.preventDefault(), { passive: false });
-    // document.addEventListener('contextmenu', (ev) => ev.preventDefault(), { passive: false });
-
-    // 速記レベルでpointer eventが抜ける場合がある
-    //
-    // touchイベントをキャンセルすることで対応している
-    document.addEventListener('touchstart', (ev) => {
-        ev.preventDefault();
-    }, { passive: false });
-
-    // 速記レベルでpointer eventが抜けるのに効くかと思ったけどそうでもなさそう
-    // document.addEventListener('selectstart', (ev) => {
-    //     ev.preventDefault();
-    // });
+    window.addEventListener('keydown', onKeydown)
 })
 
 const setPen1 = () => {
     enpitsu?.useTool('pen')
+    activeTool.value = 'pen'
 }
 
 const setRemover = () => {
     enpitsu?.useTool('remover')
+    activeTool.value = 'remover'
 }
 
 const setEraser = () => {
     enpitsu?.useTool('eraser')
+    activeTool.value = 'eraser'
 }
 
 const setSelector = () => {
     enpitsu?.useTool('selector')
+    activeTool.value = 'selector'
 }
 
 const undoAction = () => {
@@ -213,34 +222,104 @@ const stopReplay = () => {
     replayProgress.value = 0
     replayIsPlaying.value = false
 }
-
-
-// const zoomIn = () => {
-//     transformer!.zoomRatio += 0.1
-//     confirmedRenderer!.requestRenderAll()
-// }
-
-// const zoomOut = () => {
-//     transformer!.zoomRatio -= 0.1
-//     confirmedRenderer!.requestRenderAll()
-// }
-
-// const scroll = (x: number, y: number) => {
-//     transformer!.dx += x
-//     transformer!.dy += y
-//     confirmedRenderer!.requestRenderAll()
-// }
-
-
-
 </script>
 
 <style scoped>
-canvas {
-    border: 1px solid #000000;
-    touch-action: manipulation !important;
+.enpitsu-page {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+}
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    width: 100%;
+}
+
+.toolbar__brand {
+    flex-shrink: 0;
+}
+
+.toolbar__name {
+    font-family: var(--font-serif);
+    font-size: var(--text-lg);
+    font-weight: 600;
+    letter-spacing: var(--tracking-tight);
+}
+
+.toolbar__name:hover {
+    text-decoration: none;
+    opacity: 0.6;
+}
+
+.toolbar__tools,
+.toolbar__replay {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex: 1;
+}
+
+.toolbar__divider {
+    width: 1px;
+    align-self: stretch;
+    margin: 4px var(--space-2);
+    background-color: var(--line);
+}
+
+.toolbar__seek {
+    flex: 1;
+    min-width: 120px;
+    accent-color: var(--ink);
+}
+
+.canvas-stage {
+    flex: 1;
+    display: grid;
+    place-items: center;
+    padding: var(--space-5);
+    overflow: auto;
+    background-color: var(--paper-alt);
+}
+
+.unsupported {
+    max-width: 32em;
+    text-align: center;
+    color: var(--ink-muted);
+    line-height: var(--leading-body);
+}
+
+.canvas-wrap {
+    position: relative;
+    box-sizing: content-box;
+    width: 800px;
+    height: 600px;
+    border: 1px solid var(--line);
+    background-color: var(--paper);
+    flex-shrink: 0;
+}
+
+.canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    box-sizing: content-box;
     -webkit-touch-callout: none;
     -webkit-user-select: none;
     user-select: none;
+}
+
+.canvas--current {
+    z-index: 2;
+    background-color: transparent;
+    /* ブラウザにジェスチャ（スクロール/ズーム）を奪われないようにする */
+    touch-action: none;
+}
+
+.canvas--confirmed {
+    z-index: 1;
+    background-color: transparent;
 }
 </style>
