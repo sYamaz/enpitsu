@@ -46,8 +46,13 @@ jobs:
         env:
           NUXT_APP_BASE_URL: /enpitsu/
 
+      # enablement: true にすることで、リポジトリ側で GitHub Pages を
+      # 事前に有効化していなくても、main への push 時にワークフローが
+      # Pages(build_type=workflow) を自動で有効化する。
       - name: Setup Pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
